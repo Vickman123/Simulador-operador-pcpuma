@@ -26,6 +26,7 @@ export class DesktopHUD {
     this.floatingContainer = document.getElementById('floating-scores-container');
 
     this.setupEventListeners();
+    this.setupMenuModals();
   }
 
   private setupEventListeners(): void {
@@ -142,6 +143,66 @@ export class DesktopHUD {
         popup.remove();
       }, 400);
     }, 1800);
+  }
+
+  private setupMenuModals(): void {
+    const btnControls = document.getElementById('btn-controls');
+    const modalControls = document.getElementById('modal-controls');
+    const btnCloseControls = document.getElementById('btn-close-controls');
+    const btnControlsOk = document.getElementById('btn-modal-controls-ok');
+
+    const btnSettings = document.getElementById('btn-settings');
+    const modalSettings = document.getElementById('modal-settings');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnSettingsSave = document.getElementById('btn-modal-settings-save');
+
+    const openModal = (modal: HTMLElement | null) => {
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    const closeModal = (modal: HTMLElement | null) => {
+      if (modal) modal.classList.add('hidden');
+    };
+
+    btnControls?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(modalControls);
+    });
+
+    btnCloseControls?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalControls);
+    });
+
+    btnControlsOk?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalControls);
+    });
+
+    btnSettings?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(modalSettings);
+    });
+
+    btnCloseSettings?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalSettings);
+    });
+
+    btnSettingsSave?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalSettings);
+    });
+
+    // Control deslizante de volumen de audio
+    const volumeSlider = document.getElementById('setting-volume') as HTMLInputElement | null;
+    const volumeVal = document.getElementById('volume-val');
+    volumeSlider?.addEventListener('input', () => {
+      if (volumeVal) {
+        volumeVal.textContent = `${volumeSlider.value}%`;
+      }
+      events.emit('SETTING_VOLUME_CHANGED', parseInt(volumeSlider.value, 10) / 100);
+    });
   }
 
   public update(): void {

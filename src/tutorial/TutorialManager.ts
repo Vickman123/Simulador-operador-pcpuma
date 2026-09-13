@@ -34,38 +34,59 @@ export class TutorialManager {
       completed: false
     },
     {
+      id: 'task_return_cred_loan',
+      title: '4. Devolver Credencial al Alumno',
+      description: 'Toma la credencial del sensor NFC y entrégala a Juan sobre el mostrador.',
+      hint: 'Coloca la credencial frente a Juan en el mostrador para que la reciba.',
+      completed: false
+    },
+    {
       id: 'task_deliver_laptop',
-      title: '4. Asignación y Entrega de Laptop',
+      title: '5. Asignación y Entrega de Laptop',
       description: 'Acércate al Carro 01, toma la Laptop 02 con [E] o [F] y colócala en el mostrador.',
       hint: 'Apunta a la Bahía 02 y pulsa [E] o [F] para extraer la Laptop 02 y deposítala en la zona de entrega.',
       completed: false
     },
     {
       id: 'task_return_reception',
-      title: '5. Recepción de Devolución',
-      description: 'Recibe a Juan de regreso en el mostrador con el equipo para su revisión técnica.',
+      title: '6. Recepción de Devolución',
+      description: 'Recibe a Juan de regreso en el mostrador con el equipo y su credencial.',
       hint: 'Espera el término de su práctica o pulsa [ 🔔 SOLICITAR DEVOLUCIÓN ] en la pestaña DEVOLUCIÓN.',
       completed: false
     },
     {
+      id: 'task_scan_return_nfc',
+      title: '7. Re-escaneo de Credencial en Sensor',
+      description: 'Toma la credencial de Juan y pásala nuevamente por el sensor NFC.',
+      hint: 'Coloca la credencial en el sensor NFC para registrar la recepción del folio.',
+      completed: false
+    },
+    {
       id: 'task_inspect',
-      title: '6. Peritaje e Inspección Técnica',
+      title: '8. Peritaje e Inspección Técnica',
       description: 'En la pestaña 6. INSPECCIÓN, revisa el equipo y emite dictamen [ ✔ EQUIPO EN BUEN ESTADO ].',
       hint: 'Apunta a la pantalla y haz click en [ ✔ EQUIPO EN BUEN ESTADO ] para dar visto bueno.',
       completed: false
     },
     {
       id: 'task_return_to_cart',
-      title: '7. Resguardo en Carro 01',
+      title: '9. Resguardo en Carro 01',
       description: 'Toma la Laptop 02 con [E] o Click y presiona [F] cerca del Carro 01 para guardarla.',
       hint: 'Acércate al Carro 01 y pulsa [F] (o [E]/Click) para guardarla y conectarla a carga en la Bahía 02.',
       completed: false
     },
     {
+      id: 'task_return_cred_final',
+      title: '10. Devolver Credencial al Alumno',
+      description: 'Toma la credencial del sensor NFC y deposítala frente a Juan para finalizar el trámite.',
+      hint: 'Coloca la credencial en el mostrador frente a Juan para que la tome y concluya el trámite.',
+      completed: false
+    },
+    {
       id: 'task_view_results',
-      title: '8. Balance y Resultados de Operación',
+      title: '11. Balance y Resultados de Operación',
       description: 'En el monitor, abre la pestaña 7. RESULTADOS y consulta las métricas del préstamo.',
-      hint: 'Haz click en la pestaña RESULTADOS para ver la puntuación de 1,250 pts y 100% de eficiencia.',
+      hint: 'Haz click en la pestaña RESULTADOS para ver la puntuación oficial y rango institucional UNAM.',
       completed: false
     }
   ];
@@ -107,29 +128,44 @@ export class TutorialManager {
       }
     });
 
-    // 4. Entrega de laptop
+    // 4. Devolución de credencial en préstamo
+    events.on('STUDENT_RECEIVED_CREDENTIAL', () => {
+      this.completeTask('task_return_cred_loan');
+    });
+
+    // 5. Entrega de laptop
     events.on('STUDENT_RECEIVED_LAPTOP', () => {
       this.completeTask('task_deliver_laptop');
     });
 
-    // 5. Recepción de devolución en mostrador
+    // 6. Recepción de devolución en mostrador
     events.on('LOAN_RETURN_READY_FOR_INSPECTION', () => {
       this.completeTask('task_return_reception');
     });
 
-    // 6. Dictamen de inspección técnica
+    // 7. Re-escaneo de credencial en devolución
+    events.on('RETURN_CREDENTIAL_SCANNED', () => {
+      this.completeTask('task_scan_return_nfc');
+    });
+
+    // 8. Dictamen de inspección técnica
     events.on('INSPECTION_DECISION_MADE', () => {
       this.completeTask('task_inspect');
     });
 
-    // 7. Resguardo en Carro 01
+    // 9. Resguardo en Carro 01
     events.on('LAPTOP_SNAPPED_TO_CART', () => {
       if (this.tasks.find((t) => t.id === 'task_inspect')?.completed) {
         this.completeTask('task_return_to_cart');
       }
     });
 
-    // 8. Consulta de resultados
+    // 10. Devolución final de credencial
+    events.on('STUDENT_RECEIVED_CREDENTIAL_RETURN', () => {
+      this.completeTask('task_return_cred_final');
+    });
+
+    // 11. Consulta de resultados
     events.on('SCREEN_TAB_CHANGED', (tab: string) => {
       if (tab === 'RESULTADOS') {
         this.completeTask('task_view_results');

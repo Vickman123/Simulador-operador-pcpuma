@@ -3,6 +3,8 @@ import { events } from '../core/EventBus';
 export class AudioManager {
   private static instance: AudioManager;
   private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private masterVolume: number = 0.8;
 
   private constructor() {
     this.setupUnlockListeners();
@@ -20,9 +22,29 @@ export class AudioManager {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioCtx();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+      this.masterGain.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+  }
+
+  private get audioDestination(): AudioNode {
+    if (!this.ctx) throw new Error('AudioContext not initialized');
+    if (!this.masterGain) {
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+      this.masterGain.connect(this.ctx.destination);
+    }
+    return this.masterGain;
+  }
+
+  public setVolume(volume: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, volume));
+    if (this.ctx && this.masterGain) {
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
     }
   }
 
@@ -101,6 +123,10 @@ export class AudioManager {
     events.on('PENALTY_APPLIED', () => {
       this.playPenaltySound();
     });
+
+    events.on('SETTING_VOLUME_CHANGED', (volume: number) => {
+      this.setVolume(volume);
+    });
   }
 
   public playNFCSuccessBeep(): void {
@@ -117,7 +143,7 @@ export class AudioManager {
     gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
 
     osc1.connect(gain1);
-    gain1.connect(this.ctx.destination);
+    gain1.connect(this.audioDestination);
 
     osc1.start(now);
     osc1.stop(now + 0.12);
@@ -133,7 +159,7 @@ export class AudioManager {
     gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
 
     osc2.connect(gain2);
-    gain2.connect(this.ctx.destination);
+    gain2.connect(this.audioDestination);
 
     osc2.start(now + 0.1);
     osc2.stop(now + 0.35);
@@ -153,7 +179,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.04);
@@ -173,7 +199,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.08);
@@ -193,7 +219,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -215,7 +241,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.15);
@@ -259,7 +285,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.25);
@@ -279,7 +305,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
 
     osc.start(now);
     osc.stop(now + 0.2);
@@ -308,7 +334,7 @@ export class AudioManager {
     clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
     clickOsc.connect(clickGain);
-    clickGain.connect(this.ctx.destination);
+    clickGain.connect(this.audioDestination);
     clickOsc.start(now);
     clickOsc.stop(now + 0.06);
 
@@ -348,7 +374,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
     osc.start(now);
     osc.stop(now + 0.15);
   }
@@ -367,7 +393,7 @@ export class AudioManager {
     gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.audioDestination);
     osc.start(now);
     osc.stop(now + 0.25);
   }

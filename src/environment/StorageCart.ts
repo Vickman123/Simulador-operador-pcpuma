@@ -45,8 +45,8 @@ export class StorageCart {
     this.doorHinge = hinge;
     this.doorHandle = handle;
 
-    // 4. Ubicar el carro en su estación demarcada a la izquierda del operador
-    this.group.position.set(-1.75, 0, -0.75);
+    // 4. Ubicar el carro en su estación demarcada retirado del escritorio
+    this.group.position.set(-1.85, 0, -1.65);
     this.group.rotation.y = Math.PI / 2; // Con el frente mirando hacia el pasillo del operador (+X)
 
     // Inicializar estado de ocupación por defecto (Slot 1 vacío; 2, 3, 4, 5 ocupados)

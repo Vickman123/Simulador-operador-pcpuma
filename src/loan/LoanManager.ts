@@ -133,7 +133,12 @@ export class LoanManager {
 
     // 7. Laptop resguardada nuevamente en el Carro 01
     events.on('LAPTOP_SNAPPED_TO_CART', (_data: { id: string; slotIndex: number }) => {
-      if (this.currentLoan && (this.currentState === 'INSPECTED_CONFORME' || this.currentState === 'INSPECTED_INCIDENCIA')) {
+      // Laptop resguardada, queda pendiente entregar credencial a Juan
+    });
+
+    // 8. Devolución de la credencial al estudiante para finalizar el trámite oficial
+    events.on('STUDENT_RECEIVED_CREDENTIAL_RETURN', () => {
+      if (this.currentLoan) {
         this.finalizeLoan();
       }
     });

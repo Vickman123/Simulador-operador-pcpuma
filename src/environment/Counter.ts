@@ -154,7 +154,7 @@ export class Counter {
       new THREE.MeshStandardMaterial({ map: padTex, roughness: 0.6 })
     );
     bayPad.rotation.x = -Math.PI / 2;
-    bayPad.position.set(-1.75, 0.002, -0.75);
+    bayPad.position.set(-1.85, 0.002, -1.65);
     bayPad.receiveShadow = true;
     this.group.add(bayPad);
 
@@ -168,14 +168,14 @@ export class Counter {
       new THREE.BoxGeometry(0.04, 0.03, 1.15),
       stopperMat
     );
-    stopper.position.set(-2.22, 0.015, -0.75);
+    stopper.position.set(-2.28, 0.015, -1.65);
     stopper.castShadow = true;
     this.group.add(stopper);
 
     // Caja de alimentación eléctrica en la pared con LED de energía
     const powerBoxMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
     const powerBox = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.20, 0.08), powerBoxMat);
-    powerBox.position.set(-2.38, 0.65, -0.75);
+    powerBox.position.set(-2.38, 0.65, -1.65);
     this.group.add(powerBox);
 
     const ledMat = new THREE.MeshStandardMaterial({
@@ -184,7 +184,7 @@ export class Counter {
       emissiveIntensity: 0.9
     });
     const powerLed = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), ledMat);
-    powerLed.position.set(-2.32, 0.70, -0.75);
+    powerLed.position.set(-2.32, 0.70, -1.65);
     this.group.add(powerLed);
   }
 }

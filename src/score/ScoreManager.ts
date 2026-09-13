@@ -60,6 +60,11 @@ export class ScoreManager {
       }
     });
 
+    // 2b. Devolución de credencial al alumno en préstamo (+50 pts)
+    events.on("STUDENT_RECEIVED_CREDENTIAL", () => {
+      this.addPoints("Devolución reglamentaria de credencial al alumno", 50, true);
+    });
+
     // 3. Entrega de equipo conforme (+100 pts)
     events.on("STUDENT_RECEIVED_LAPTOP", () => {
       this.completedLoans++;
@@ -80,6 +85,11 @@ export class ScoreManager {
     // 5. Resguardo en Carro 01 (+50 pts)
     events.on("LAPTOP_SNAPPED_TO_CART", () => {
       this.addPoints("Resguardo y conexión de recarga en Carro 01", 50, true);
+    });
+
+    // 6. Devolución final de credencial (+100 pts)
+    events.on("STUDENT_RECEIVED_CREDENTIAL_RETURN", () => {
+      this.addPoints("Devolución final de credencial y cierre de trámite", 50, true);
       // Bono adicional por ciclo completo impecable si no hubo errores
       if (this.mistakesCount === 0) {
         this.addPoints("Bono de Excelencia Operativa UNAM (Ciclo sin errores)", 100, false);

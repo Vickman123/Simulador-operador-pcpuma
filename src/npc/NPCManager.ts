@@ -35,6 +35,12 @@ export class NPCManager {
   private isCredentialScanned: boolean = false;
   private isUserValidated: boolean = false;
 
+  // Banderas de entrega y devolución de credencial institucional
+  private hasStudentReceivedCredentialInitial: boolean = false;
+  private isReturnCredentialScanned: boolean = false;
+  private isLaptopStoredInCart: boolean = false;
+  private hasReturnedCredentialFinal: boolean = false;
+
   constructor(scene: THREE.Scene) {
     // 1. Configuración de Juan Pérez López (NPC 1 - Alumno Correcto)
     const juanConfig: StudentConfig = {
@@ -70,7 +76,11 @@ export class NPCManager {
       this.isCredentialScanned = true;
       if (this.currentState === 'AT_COUNTER') {
         this.currentState = 'WAITING_VALIDATION';
-        this.student.say('¡Perfecto! Ya leyó mi credencial.', 3.5);
+        this.student.say('¡Perfecto! Ya leyó mi credencial. Valida mis datos en el monitor.', 4.0);
+      } else if (this.currentState === 'AT_COUNTER_RETURNING') {
+        this.isReturnCredentialScanned = true;
+        this.student.say('¡Excelente! Ya registraste la credencial de devolución. Ahora por favor revisa el equipo.', 4.5);
+        events.emit('RETURN_CREDENTIAL_SCANNED');
       }
     });
 
@@ -81,8 +91,7 @@ export class NPCManager {
         if (this.currentState === 'WAITING_VALIDATION' || this.currentState === 'AT_COUNTER' || this.currentState === 'ENTERING') {
           if (this.currentState !== 'ENTERING') {
             this.currentState = 'WAITING_EQUIPMENT';
-            this.student.say('¡Excelente! Muchas gracias por validar mis datos. Espero el equipo.', 4.0);
-            this.checkForLaptopOnCounter();
+            this.student.say('¡Excelente! Mis datos están validados. Por favor devuélveme mi credencial para recibir la laptop.', 4.5);
           }
         }
       }
@@ -95,6 +104,11 @@ export class NPCManager {
         if (!laptop) return;
 
         if (this.currentState === 'WAITING_EQUIPMENT') {
+          if (!this.hasStudentReceivedCredentialInitial) {
+            this.student.say('Por favor devuélveme primero mi credencial de estudiante para poder recibir la laptop.', 4.5);
+            return;
+          }
+
           if (laptop.isMaintenance) {
             this.student.say('Disculpa, este equipo tiene etiqueta de mantenimiento. ¿Podrías darme uno funcional por favor?', 4.5);
           } else {
@@ -108,6 +122,14 @@ export class NPCManager {
       }
     });
 
+    // Laptop resguardada en el Carro 01 durante la devolución
+    events.on('LAPTOP_SNAPPED_TO_CART', () => {
+      if (this.currentState === 'AT_COUNTER_RETURNING') {
+        this.isLaptopStoredInCart = true;
+        this.student.say('¡Equipo resguardado con éxito! Por favor devuélveme mi credencial para retirarme.', 4.5);
+      }
+    });
+
     // Solicitud manual de devolución de equipo desde el monitor
     events.on('REQUEST_STUDENT_RETURN', () => {
       this.startReturnFlow();
@@ -117,17 +139,12 @@ export class NPCManager {
     events.on('INSPECTION_DECISION_MADE', (verdict: 'BUEN_ESTADO' | 'INCIDENCIA') => {
       if (this.currentState === 'AT_COUNTER_RETURNING') {
         if (verdict === 'BUEN_ESTADO') {
-          this.student.say('¡Excelente! Todo en orden. Muchas gracias por la atención, hasta luego.', 4.5);
+          this.student.say('¡Excelente! Dictamen conforme. Resguarda la laptop en el Carro 01 y devuélveme mi credencial.', 5.0);
           audio.playVictoryChime();
         } else {
-          this.student.say('Entendido, firmaré el acta de incidencia correspondiente. Gracias por la revisión.', 4.5);
+          this.student.say('Entendido, firmaré el reporte de incidencia. Resguarda la laptop y devuélveme mi credencial.', 5.0);
           audio.playWarningBeep();
         }
-
-        setTimeout(() => {
-          this.currentState = 'EXITING';
-          this.student.exitRoom(this.entrancePos);
-        }, 1600);
       }
     });
 
@@ -139,6 +156,7 @@ export class NPCManager {
 
   private checkForLaptopOnCounter(): void {
     if (this.currentState !== 'WAITING_EQUIPMENT') return;
+    if (!this.hasStudentReceivedCredentialInitial) return;
     const laptopOnCounter = this.laptopsRef.find(
       (l) => !l.isGrabbed() && inventory.getItem(l.id)?.status === 'EN_MOSTRADOR' && !l.isMaintenance
     );
@@ -200,6 +218,11 @@ export class NPCManager {
     this.currentState = 'ENTERING';
     this.isCredentialScanned = false;
     this.isUserValidated = false;
+    this.hasStudentReceivedCredentialInitial = false;
+    this.isReturnCredentialScanned = false;
+    this.isLaptopStoredInCart = false;
+    this.hasReturnedCredentialFinal = false;
+
     this.student.standFromDesk();
     this.student.group.visible = true;
     this.student.group.position.copy(this.entrancePos);
@@ -224,8 +247,7 @@ export class NPCManager {
         }
         if (this.isUserValidated) {
           this.currentState = 'WAITING_EQUIPMENT';
-          this.student.say('¡Hola! Veo que ya validaste mis datos. Espero la laptop asignada.', 4.0);
-          this.checkForLaptopOnCounter();
+          this.student.say('¡Hola! Veo que ya validaste mis datos. Devuélveme mi credencial para recibir la laptop.', 4.0);
         } else if (this.isCredentialScanned) {
           this.currentState = 'WAITING_VALIDATION';
           this.student.say('¡Hola! Ya escaneaste mi credencial. Por favor confirma mi validación en el monitor.', 4.0);
@@ -265,9 +287,55 @@ export class NPCManager {
           inventory.updateStatus(returnedLaptop.id, 'EN_MOSTRADOR');
           events.emit('LAPTOP_RETURNED_TO_COUNTER', { laptopId: returnedLaptop.id, laptop: returnedLaptop });
         }
+
+        // Juan también coloca su credencial sobre el mostrador para el registro de devolución
+        if (this.credentialRef) {
+          this.credentialRef.group.position.set(0.35, 1.102, 0.12);
+          this.credentialRef.group.rotation.set(0, -Math.PI / 10, 0);
+          this.credentialRef.group.visible = true;
+        }
+        this.isReturnCredentialScanned = false;
+        this.isLaptopStoredInCart = false;
+        this.hasReturnedCredentialFinal = false;
+
         audio.playThudSound();
-        this.student.say('Aquí tienes el equipo para su revisión técnica. ¿Todo en orden?', 4.5);
+        this.student.say('Aquí tienes la laptop y mi credencial para registrar la devolución. ¿Todo en orden?', 5.0);
         events.emit('LOAN_RETURN_READY_FOR_INSPECTION');
+      }
+    }
+
+    // 3b. Detección de devolución de credencial a Juan en el mostrador
+    if (this.credentialRef && this.credentialRef.group.visible && !this.credentialRef.isGrabbed()) {
+      const credWorldPos = new THREE.Vector3();
+      this.credentialRef.group.getWorldPosition(credWorldPos);
+
+      // Zona del mostrador frente a Juan (X: [0.20, 0.90], Z: [-0.15, 0.40], Y: [1.05, 1.25])
+      const isNearJuanDesk = credWorldPos.x >= 0.20 && credWorldPos.x <= 0.90 &&
+                             credWorldPos.z >= -0.15 && credWorldPos.z <= 0.40 &&
+                             credWorldPos.y >= 1.05 && credWorldPos.y <= 1.25;
+
+      // A) Fase 1: Devolución de credencial en el préstamo inicial
+      if (this.currentState === 'WAITING_EQUIPMENT' && this.isUserValidated && !this.hasStudentReceivedCredentialInitial && isNearJuanDesk) {
+        this.credentialRef.group.visible = false;
+        this.hasStudentReceivedCredentialInitial = true;
+        audio.playVictoryChime();
+        this.student.say('¡Muchas gracias por devolverme mi credencial! Ahora quedo a la espera de la laptop.', 4.5);
+        events.emit('STUDENT_RECEIVED_CREDENTIAL', { studentName: this.student.config.name });
+        this.checkForLaptopOnCounter();
+      }
+
+      // B) Fase 2: Devolución final de credencial al concluir la devolución
+      if (this.currentState === 'AT_COUNTER_RETURNING' && this.isLaptopStoredInCart && this.isReturnCredentialScanned && !this.hasReturnedCredentialFinal && isNearJuanDesk) {
+        this.credentialRef.group.visible = false;
+        this.hasReturnedCredentialFinal = true;
+        audio.playVictoryChime();
+        this.student.say('¡Todo en orden y completo! Muchas gracias por la atención y por entregarme mi credencial. ¡Hasta luego!', 5.0);
+        events.emit('STUDENT_RECEIVED_CREDENTIAL_RETURN', { studentName: this.student.config.name });
+
+        setTimeout(() => {
+          this.currentState = 'EXITING';
+          this.student.exitRoom(this.entrancePos);
+        }, 1600);
       }
     }
 
