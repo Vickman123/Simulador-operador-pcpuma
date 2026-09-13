@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { Laptop } from '../entities/Laptop';
 
 export interface StudentConfig {
@@ -19,6 +20,11 @@ export class StudentNPC {
   // Contenedor del cuerpo procedural y modelo 3D realista
   private proceduralBody: THREE.Group = new THREE.Group();
   public customModel: THREE.Group | null = null;
+
+  // Animaciones Mixamo esqueléticas
+  public mixer: THREE.AnimationMixer | null = null;
+  public actions: Map<string, THREE.AnimationAction> = new Map();
+  public currentActionName: string | null = null;
 
   // Extremidades para animación procedural
   private leftLeg!: THREE.Group;
@@ -54,7 +60,7 @@ export class StudentNPC {
 
     this.buildHumanoidModel();
     this.buildSpeechBubble();
-    this.loadCustomGLTFModel();
+    this.loadAnimatedFBXModel();
   }
 
   private buildHumanoidModel(): void {
@@ -193,6 +199,163 @@ export class StudentNPC {
     this.group.add(this.proceduralBody);
   }
 
+  private loadAnimatedFBXModel(): void {
+    const fbxLoader = new FBXLoader();
+    const texLoader = new THREE.TextureLoader();
+
+    // 1. Cargar el modelo base esquelético con animación de caminata
+    fbxLoader.load(
+      'models/animations/Walking.fbx',
+      (object) => {
+        // Al cargar el modelo animado, ocultar cuerpo procedural
+        this.proceduralBody.visible = false;
+        const model = object;
+        model.name = 'AnimatedStudentModel';
+
+        // Escalar a altura estándar de estudiante universitario (~1.73m)
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const targetHeight = 1.73;
+        const scale = size.y > 0 ? targetHeight / size.y : 1;
+        model.scale.set(scale, scale, scale);
+
+        // Alinear pies con el suelo (Y = 0) y centrar
+        const scaledBox = new THREE.Box3().setFromObject(model);
+        model.position.y = -scaledBox.min.y;
+        model.position.x = 0;
+        model.position.z = 0;
+
+        // Asignar textura diffuse de la UNAM en alta resolución
+        texLoader.load('textures/student_texture.png', (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          model.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.SkinnedMesh;
+              mesh.material = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.65,
+                metalness: 0.1
+              });
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+            }
+          });
+        });
+
+        // Crear el mezclador de animaciones
+        const mixer = new THREE.AnimationMixer(model);
+        this.mixer = mixer;
+
+        // Clip 1: Caminata In-Place (Walking)
+        if (model.animations && model.animations.length > 0) {
+          const walkClip = this.makeInPlace(model.animations[0].clone(), 'walk');
+          const walkAction = mixer.clipAction(walkClip);
+          walkAction.setLoop(THREE.LoopRepeat, Infinity);
+          this.actions.set('walk', walkAction);
+        }
+
+        this.customModel = model;
+        this.group.add(model);
+
+        if (this.speechBubble) {
+          this.speechBubble.position.y = targetHeight + 0.35;
+        }
+
+        // Clip 2: Escribir / Teclear en laptop (Writing)
+        fbxLoader.load('models/animations/Writing.fbx', (animObj) => {
+          if (animObj.animations && animObj.animations.length > 0) {
+            const writeClip = animObj.animations[0].clone();
+            writeClip.name = 'write';
+            const writeAction = mixer.clipAction(writeClip);
+            writeAction.setLoop(THREE.LoopRepeat, Infinity);
+            this.actions.set('write', writeAction);
+          }
+        });
+
+        // Clip 3: Sentarse en la silla (Stand To Sit)
+        fbxLoader.load('models/animations/Stand To Sit.fbx', (animObj) => {
+          if (animObj.animations && animObj.animations.length > 0) {
+            const sitClip = animObj.animations[0].clone();
+            sitClip.name = 'sit';
+            const sitAction = mixer.clipAction(sitClip);
+            sitAction.setLoop(THREE.LoopOnce, 1);
+            sitAction.clampWhenFinished = true;
+            this.actions.set('sit', sitAction);
+          }
+        });
+
+        // Clip 4: Caminata con estilo al retirarse (Swagger Walk)
+        fbxLoader.load('models/animations/Swagger Walk.fbx', (animObj) => {
+          if (animObj.animations && animObj.animations.length > 0) {
+            const swaggerClip = this.makeInPlace(animObj.animations[0].clone(), 'swagger');
+            const swaggerAction = mixer.clipAction(swaggerClip);
+            swaggerAction.setLoop(THREE.LoopRepeat, Infinity);
+            this.actions.set('swagger', swaggerAction);
+          }
+        });
+
+        // Si ya había una caminata en curso al cargarse, reproducir walk de inmediato
+        if (this.isWalking) {
+          this.playAnimation('walk');
+        }
+
+        console.log('[StudentNPC] Modelo animado FBX y clips Mixamo cargados con éxito.');
+      },
+      undefined,
+      (err) => {
+        console.warn('[StudentNPC] Walking.fbx no disponible. Usando student.glb de respaldo...', err);
+        this.loadCustomGLTFModel();
+      }
+    );
+  }
+
+  // Convierte animaciones con Root Motion en animaciones In-Place para que Three.js controle la posición
+  private makeInPlace(clip: THREE.AnimationClip, newName: string): THREE.AnimationClip {
+    clip.name = newName;
+    for (const track of clip.tracks) {
+      if (track.name.endsWith('.position')) {
+        const vals = track.values;
+        const x0 = vals[0];
+        const z0 = vals[2];
+        for (let i = 0; i < vals.length; i += 3) {
+          vals[i] = x0; // Bloquea avance en X
+          // vals[i + 1] es Y: se mantiene intacto para conservar el rebote natural de la cadera
+          vals[i + 2] = z0; // Bloquea avance en Z para caminata in-place
+        }
+      }
+    }
+    return clip;
+  }
+
+  public playAnimation(name: string, fadeDuration: number = 0.35): void {
+    if (!this.mixer) return;
+    if (this.currentActionName === name) return;
+
+    const nextAction = this.actions.get(name);
+    if (!nextAction) return;
+
+    if (this.currentActionName) {
+      const prevAction = this.actions.get(this.currentActionName);
+      if (prevAction) {
+        prevAction.fadeOut(fadeDuration);
+      }
+    }
+
+    nextAction.reset().fadeIn(fadeDuration).play();
+    this.currentActionName = name;
+  }
+
+  public stopAnimation(fadeDuration: number = 0.35): void {
+    if (this.currentActionName) {
+      const action = this.actions.get(this.currentActionName);
+      if (action) {
+        action.fadeOut(fadeDuration);
+      }
+      this.currentActionName = null;
+    }
+  }
+
   private loadCustomGLTFModel(): void {
     const loader = new GLTFLoader();
     loader.load(
@@ -235,7 +398,7 @@ export class StudentNPC {
           this.speechBubble.position.y = targetHeight + 0.35;
         }
 
-        console.log(`[StudentNPC] Modelo 3D student.glb cargado e integrado correctamente (altura: ${targetHeight}m).`);
+        console.log(`[StudentNPC] Modelo 3D student.glb cargado como respaldo (altura: ${targetHeight}m).`);
       },
       undefined,
       (err) => {
@@ -326,10 +489,11 @@ export class StudentNPC {
     this.speechTimer = durationSec;
   }
 
-  public setTarget(target: THREE.Vector3, speed: number = 1.6): void {
+  public setTarget(target: THREE.Vector3, speed: number = 1.6, animationName: 'walk' | 'swagger' = 'walk'): void {
     this.targetPosition = target.clone();
     this.walkSpeed = speed;
     this.isWalking = true;
+    this.playAnimation(animationName);
   }
 
   public receiveLaptop(laptop: Laptop): void {
@@ -350,7 +514,11 @@ export class StudentNPC {
     this.isWalking = false;
     this.targetPosition = null;
 
-    if (this.customModel) {
+    if (this.mixer) {
+      // Con modelo animado Mixamo: posicionarse frente a la mesa y comenzar animación de tecleo
+      this.group.position.set(chairPos.x, 0, chairPos.z);
+      this.playAnimation('write');
+    } else if (this.customModel) {
       // Para modelo 3D estático, se posiciona de pie frente a la mesa de estudio
       this.group.position.set(chairPos.x, 0, chairPos.z);
     } else {
@@ -395,6 +563,8 @@ export class StudentNPC {
 
     // Regresar a postura de pie sobre el suelo
     this.group.position.y = 0;
+    this.stopAnimation(0.35);
+
     if (this.leftLeg) this.leftLeg.rotation.set(0, 0, 0);
     if (this.rightLeg) this.rightLeg.rotation.set(0, 0, 0);
     if (this.leftKnee) this.leftKnee.rotation.set(0, 0, 0);
@@ -438,10 +608,15 @@ export class StudentNPC {
   }
 
   public exitRoom(doorPos: THREE.Vector3): void {
-    this.setTarget(doorPos, 1.35);
+    this.setTarget(doorPos, 1.35, 'swagger');
   }
 
   public update(delta: number, cameraPosition: THREE.Vector3): void {
+    // 0. Actualizar mezclador de animaciones Mixamo
+    if (this.mixer) {
+      this.mixer.update(delta);
+    }
+
     // 1. Temporizador del globo de diálogo
     if (this.speechTimer > 0) {
       this.speechTimer -= delta;
@@ -460,7 +635,7 @@ export class StudentNPC {
     // 3. Animación si está sentado en la mesa de estudio
     if (this.isSeated) {
       this.walkTime += delta * 5.0;
-      if (this.customModel) {
+      if (this.customModel && !this.mixer) {
         this.customModel.position.y = Math.sin(this.walkTime * 2.0) * 0.003;
       }
       if (this.leftArm && this.rightArm) {
@@ -473,7 +648,7 @@ export class StudentNPC {
     // 4. Respiración sutil / Idle si está de pie esperando
     if (!this.isWalking) {
       this.walkTime += delta * 1.8;
-      if (this.customModel) {
+      if (this.customModel && !this.mixer) {
         this.customModel.position.y = Math.sin(this.walkTime) * 0.005;
       }
       this.torso.position.y = 0.82 + Math.sin(this.walkTime) * 0.005;
@@ -500,8 +675,8 @@ export class StudentNPC {
         // Animación de caminado
         this.walkTime += delta * 7.5;
 
-        // Oscilación del modelo 3D realista
-        if (this.customModel) {
+        // Oscilación del modelo 3D estático (si no hay esqueleto Mixamo)
+        if (this.customModel && !this.mixer) {
           this.customModel.position.y = Math.abs(Math.sin(this.walkTime)) * 0.025;
           this.customModel.rotation.z = Math.sin(this.walkTime * 0.5) * 0.02;
         }
@@ -524,7 +699,9 @@ export class StudentNPC {
       } else {
         // Llegó al objetivo
         this.isWalking = false;
-        if (this.customModel) {
+        this.stopAnimation(0.35);
+
+        if (this.customModel && !this.mixer) {
           this.customModel.position.y = 0;
           this.customModel.rotation.z = 0;
         }
