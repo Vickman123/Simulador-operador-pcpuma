@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Laptop } from '../entities/Laptop';
 
 export interface StudentConfig {
@@ -14,6 +15,10 @@ export interface StudentConfig {
 export class StudentNPC {
   public readonly config: StudentConfig;
   public readonly group: THREE.Group;
+
+  // Contenedor del cuerpo procedural y modelo 3D realista
+  private proceduralBody: THREE.Group = new THREE.Group();
+  public customModel: THREE.Group | null = null;
 
   // Extremidades para animación procedural
   private leftLeg!: THREE.Group;
@@ -49,6 +54,7 @@ export class StudentNPC {
 
     this.buildHumanoidModel();
     this.buildSpeechBubble();
+    this.loadCustomGLTFModel();
   }
 
   private buildHumanoidModel(): void {
@@ -88,7 +94,7 @@ export class StudentNPC {
     neck.position.y = 0.56;
     this.torso.add(neck);
 
-    this.group.add(this.torso);
+    this.proceduralBody.add(this.torso);
 
     // 2. CABEZA Y CABELLO
     this.head = new THREE.Group();
@@ -114,7 +120,7 @@ export class StudentNPC {
     rightEye.position.set(0.05, 0.12, 0.105);
     this.head.add(rightEye);
 
-    this.group.add(this.head);
+    this.proceduralBody.add(this.head);
 
     // 3. BRAZOS ARTICULADOS EN HOMBROS
     const buildArm = (isLeft: boolean) => {
@@ -134,7 +140,7 @@ export class StudentNPC {
       hand.castShadow = true;
       armPivot.add(hand);
 
-      this.group.add(armPivot);
+      this.proceduralBody.add(armPivot);
       return armPivot;
     };
 
@@ -170,7 +176,7 @@ export class StudentNPC {
       kneePivot.add(shoe);
 
       hipPivot.add(kneePivot);
-      this.group.add(hipPivot);
+      this.proceduralBody.add(hipPivot);
 
       if (isLeft) {
         this.leftKnee = kneePivot;
@@ -183,6 +189,60 @@ export class StudentNPC {
 
     this.leftLeg = buildLeg(true);
     this.rightLeg = buildLeg(false);
+
+    this.group.add(this.proceduralBody);
+  }
+
+  private loadCustomGLTFModel(): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      'models/student.glb',
+      (gltf) => {
+        // Al cargar con éxito el modelo 3D realista, ocultar el cuerpo de bloques procedural
+        this.proceduralBody.visible = false;
+
+        const model = gltf.scene;
+        model.name = 'CustomStudentModel';
+
+        // Calcular caja delimitadora para escalar a altura estándar de estudiante universitario (~1.73m)
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+
+        const targetHeight = 1.73;
+        const scale = size.y > 0 ? targetHeight / size.y : 1;
+        model.scale.set(scale, scale, scale);
+
+        // Alinear base de los pies con el suelo (Y = 0) y centrar X/Z
+        const scaledBox = new THREE.Box3().setFromObject(model);
+        model.position.y = -scaledBox.min.y;
+        model.position.x = 0;
+        model.position.z = 0;
+
+        // Habilitar sombras para realismo con las luces de la sala
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        this.customModel = model;
+        this.group.add(model);
+
+        // Ajustar posición del globo de texto sobre la cabeza del nuevo modelo
+        if (this.speechBubble) {
+          this.speechBubble.position.y = targetHeight + 0.35;
+        }
+
+        console.log(`[StudentNPC] Modelo 3D student.glb cargado e integrado correctamente (altura: ${targetHeight}m).`);
+      },
+      undefined,
+      (err) => {
+        console.warn('[StudentNPC] student.glb no encontrado o error de carga. Usando cuerpo procedural de respaldo.', err);
+        this.proceduralBody.visible = true;
+      }
+    );
   }
 
   private buildSpeechBubble(): void {
@@ -290,18 +350,24 @@ export class StudentNPC {
     this.isWalking = false;
     this.targetPosition = null;
 
-    // Altura del asiento: Y = 0.46m. Como la cadera local está en Y = 0.82m:
-    // Y del grupo = 0.46 - 0.82 = -0.36m (Posición anatómica perfecta sobre el asiento)
-    this.group.position.set(chairPos.x, -0.36, chairPos.z);
+    if (this.customModel) {
+      // Para modelo 3D estático, se posiciona de pie frente a la mesa de estudio
+      this.group.position.set(chairPos.x, 0, chairPos.z);
+    } else {
+      // Altura del asiento: Y = 0.46m. Como la cadera local está en Y = 0.82m:
+      // Y del grupo = 0.46 - 0.82 = -0.36m (Posición anatómica perfecta sobre el asiento)
+      this.group.position.set(chairPos.x, -0.36, chairPos.z);
+
+      // 1. Caderas a 90° (muslos horizontales sobre la silla)
+      this.leftLeg.rotation.x = -Math.PI / 2;
+      this.rightLeg.rotation.x = -Math.PI / 2;
+
+      // 2. Rodillas a 90° (pantorrillas verticales hacia el piso)
+      this.leftKnee.rotation.x = Math.PI / 2;
+      this.rightKnee.rotation.x = Math.PI / 2;
+    }
+
     this.group.rotation.set(0, 0, 0); // Mirando hacia la mesa
-
-    // 1. Caderas a 90° (muslos horizontales sobre la silla)
-    this.leftLeg.rotation.x = -Math.PI / 2;
-    this.rightLeg.rotation.x = -Math.PI / 2;
-
-    // 2. Rodillas a 90° (pantorrillas verticales hacia el piso)
-    this.leftKnee.rotation.x = Math.PI / 2;
-    this.rightKnee.rotation.x = Math.PI / 2;
 
     // 3. Colocar la laptop abierta sobre la mesa justo frente a él
     if (this.heldLaptop) {
@@ -316,8 +382,10 @@ export class StudentNPC {
     }
 
     // 4. Brazos descansando sobre la mesa para teclear en la laptop
-    this.leftArm.rotation.x = -Math.PI / 2.7;
-    this.rightArm.rotation.x = -Math.PI / 2.7;
+    if (this.leftArm && this.rightArm) {
+      this.leftArm.rotation.x = -Math.PI / 2.7;
+      this.rightArm.rotation.x = -Math.PI / 2.7;
+    }
   }
 
   public standFromDesk(): void {
@@ -327,10 +395,10 @@ export class StudentNPC {
 
     // Regresar a postura de pie sobre el suelo
     this.group.position.y = 0;
-    this.leftLeg.rotation.set(0, 0, 0);
-    this.rightLeg.rotation.set(0, 0, 0);
-    this.leftKnee.rotation.set(0, 0, 0);
-    this.rightKnee.rotation.set(0, 0, 0);
+    if (this.leftLeg) this.leftLeg.rotation.set(0, 0, 0);
+    if (this.rightLeg) this.rightLeg.rotation.set(0, 0, 0);
+    if (this.leftKnee) this.leftKnee.rotation.set(0, 0, 0);
+    if (this.rightKnee) this.rightKnee.rotation.set(0, 0, 0);
 
     // Si tiene laptop sobre la mesa, cerrarla y recogerla en brazos
     if (this.heldLaptop) {
@@ -340,8 +408,10 @@ export class StudentNPC {
       this.heldLaptop.group.rotation.set(0.2, 0, 0);
 
       // Brazos en postura de sujeción
-      this.leftArm.rotation.x = -Math.PI / 3;
-      this.rightArm.rotation.x = -Math.PI / 3;
+      if (this.leftArm && this.rightArm) {
+        this.leftArm.rotation.x = -Math.PI / 3;
+        this.rightArm.rotation.x = -Math.PI / 3;
+      }
     }
   }
 
@@ -387,17 +457,25 @@ export class StudentNPC {
       this.speechBubble.lookAt(cameraPosition.x, bubbleWorldPos.y, cameraPosition.z);
     }
 
-    // 3. Animación de tecleo si está sentado en la mesa de estudio
+    // 3. Animación si está sentado en la mesa de estudio
     if (this.isSeated) {
       this.walkTime += delta * 5.0;
-      this.leftArm.rotation.x = -Math.PI / 2.7 + Math.sin(this.walkTime * 2.5) * 0.03;
-      this.rightArm.rotation.x = -Math.PI / 2.7 + Math.cos(this.walkTime * 2.5) * 0.03;
+      if (this.customModel) {
+        this.customModel.position.y = Math.sin(this.walkTime * 2.0) * 0.003;
+      }
+      if (this.leftArm && this.rightArm) {
+        this.leftArm.rotation.x = -Math.PI / 2.7 + Math.sin(this.walkTime * 2.5) * 0.03;
+        this.rightArm.rotation.x = -Math.PI / 2.7 + Math.cos(this.walkTime * 2.5) * 0.03;
+      }
       return;
     }
 
     // 4. Respiración sutil / Idle si está de pie esperando
     if (!this.isWalking) {
       this.walkTime += delta * 1.8;
+      if (this.customModel) {
+        this.customModel.position.y = Math.sin(this.walkTime) * 0.005;
+      }
       this.torso.position.y = 0.82 + Math.sin(this.walkTime) * 0.005;
       return;
     }
@@ -419,8 +497,16 @@ export class StudentNPC {
         // Desplazamiento
         currentPos.addScaledVector(dir, this.walkSpeed * delta);
 
-        // Animación procedural de caminado con flexión de rodillas
+        // Animación de caminado
         this.walkTime += delta * 7.5;
+
+        // Oscilación del modelo 3D realista
+        if (this.customModel) {
+          this.customModel.position.y = Math.abs(Math.sin(this.walkTime)) * 0.025;
+          this.customModel.rotation.z = Math.sin(this.walkTime * 0.5) * 0.02;
+        }
+
+        // Animación procedural de extremidades (si se usa cuerpo de bloques)
         const legSwing = Math.sin(this.walkTime) * 0.55;
         this.leftLeg.rotation.x = legSwing;
         this.rightLeg.rotation.x = -legSwing;
@@ -428,21 +514,25 @@ export class StudentNPC {
         this.rightKnee.rotation.x = Math.max(0, legSwing * 0.5);
 
         // Si no está cargando una laptop, balancear brazos naturalmente
-        if (!this.heldLaptop) {
+        if (!this.heldLaptop && this.leftArm && this.rightArm) {
           this.leftArm.rotation.x = -legSwing * 0.45;
           this.rightArm.rotation.x = legSwing * 0.45;
         }
 
-        // Cadencia vertical del torso
+        // Cadencia vertical del torso procedural
         this.torso.position.y = 0.82 + Math.abs(Math.sin(this.walkTime)) * 0.03;
       } else {
         // Llegó al objetivo
         this.isWalking = false;
+        if (this.customModel) {
+          this.customModel.position.y = 0;
+          this.customModel.rotation.z = 0;
+        }
         this.leftLeg.rotation.x = 0;
         this.rightLeg.rotation.x = 0;
         this.leftKnee.rotation.x = 0;
         this.rightKnee.rotation.x = 0;
-        if (!this.heldLaptop) {
+        if (!this.heldLaptop && this.leftArm && this.rightArm) {
           this.leftArm.rotation.x = 0;
           this.rightArm.rotation.x = 0;
         }
