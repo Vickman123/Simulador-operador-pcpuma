@@ -76,6 +76,18 @@ export class NFCScanner {
       emissiveIntensity: 0.25
     });
 
+    // Carga asistida de diana NFC personalizada
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+      'textures/nfc_pad.png',
+      (customPadTex) => {
+        this.padMat.map = customPadTex;
+        this.padMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
     this.targetPad = new THREE.Mesh(
       new THREE.PlaneGeometry(0.13, 0.13),
       this.padMat

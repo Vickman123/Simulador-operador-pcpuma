@@ -56,6 +56,21 @@ export class Room {
       metalness: 0.1
     });
 
+    // Carga asistida de loseta personalizada si se sube a public/textures/floor_tiles.png
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+      'textures/floor_tiles.png',
+      (customFloorTex) => {
+        customFloorTex.wrapS = THREE.RepeatWrapping;
+        customFloorTex.wrapT = THREE.RepeatWrapping;
+        customFloorTex.repeat.set(4, 4);
+        floorMat.map = customFloorTex;
+        floorMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -185,9 +200,65 @@ export class Room {
       metalness: 0.1
     });
 
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+      'images/wall_banner.png',
+      (bannerTex) => {
+        signMat.map = bannerTex;
+        signMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
     const signMesh = new THREE.Mesh(signGeo, signMat);
     signMesh.position.set(0, 2.3, -3.88);
     this.group.add(signMesh);
+
+    // Cartel / Póster de reglamento en la pared lateral (X = -3.88, Z = -0.6)
+    const posterCanvas = document.createElement('canvas');
+    posterCanvas.width = 512;
+    posterCanvas.height = 768;
+    const pCtx = posterCanvas.getContext('2d')!;
+    pCtx.fillStyle = '#FFFFFF';
+    pCtx.fillRect(0, 0, 512, 768);
+    pCtx.strokeStyle = '#0076F5';
+    pCtx.lineWidth = 12;
+    pCtx.strokeRect(6, 6, 500, 756);
+    pCtx.fillStyle = '#003B7A';
+    pCtx.font = 'bold 30px sans-serif';
+    pCtx.textAlign = 'center';
+    pCtx.fillText('REGLAMENTO OFICIAL', 256, 55);
+    pCtx.font = 'bold 22px sans-serif';
+    pCtx.fillText('PROGRAMA PC PUMA UNAM', 256, 95);
+    pCtx.fillStyle = '#475569';
+    pCtx.font = '16px sans-serif';
+    pCtx.textAlign = 'left';
+    pCtx.fillText('• Préstamo máximo: 2 horas por turno.', 40, 160);
+    pCtx.fillText('• Presentar credencial UNAM vigente.', 40, 200);
+    pCtx.fillText('• Peritaje de 5 puntos al recibir el equipo.', 40, 240);
+    pCtx.fillText('• Resguardo y carga obligatoria en Carro 01.', 40, 280);
+    pCtx.fillText('• Cualquier anomalía debe reportarse al operador.', 40, 320);
+
+    const posterMat = new THREE.MeshStandardMaterial({
+      map: new THREE.CanvasTexture(posterCanvas),
+      roughness: 0.35
+    });
+
+    texLoader.load(
+      'images/poster_rules.png',
+      (customPosterTex) => {
+        posterMat.map = customPosterTex;
+        posterMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
+    const posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.25), posterMat);
+    posterMesh.position.set(-3.88, 1.85, -0.6);
+    posterMesh.rotation.y = Math.PI / 2;
+    this.group.add(posterMesh);
   }
 
   private createCeilingLamps(): void {

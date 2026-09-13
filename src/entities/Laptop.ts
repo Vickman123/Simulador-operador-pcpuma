@@ -159,12 +159,53 @@ export class Laptop implements IGrabbable {
       roughness: 0.2
     });
 
+    // Carga asistida de fondo de pantalla personalizado
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+      'textures/laptop_wallpaper.png',
+      (wallpaperTex) => {
+        this.screenMat.map = wallpaperTex;
+        this.screenMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
     const screenMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(width * 0.92, depth * 0.86),
       this.screenMat
     );
     screenMesh.position.set(0, depth / 2, 0.005);
     this.lidGroup.add(screenMesh);
+
+    // Sticker / Logo institucional en el exterior de la tapa (visible cuando está cerrada o desde atrás)
+    const lidLogoMat = new THREE.MeshStandardMaterial({
+      transparent: true,
+      roughness: 0.35,
+      metalness: 0.2
+    });
+    texLoader.load(
+      'textures/laptop_lid_logo.png',
+      (lidTex) => {
+        lidLogoMat.map = lidTex;
+        lidLogoMat.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        // Fallback al logo principal PC PUMA
+        texLoader.load('pc_puma_logo.png', (pumaTex) => {
+          lidLogoMat.map = pumaTex;
+          lidLogoMat.needsUpdate = true;
+        });
+      }
+    );
+    const lidLogoMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.12, 0.06),
+      lidLogoMat
+    );
+    lidLogoMesh.position.set(0, depth / 2, -0.005);
+    lidLogoMesh.rotation.y = Math.PI;
+    this.lidGroup.add(lidLogoMesh);
 
     // Ajustar ángulo de apertura inicial
     if (this.isClosed) {

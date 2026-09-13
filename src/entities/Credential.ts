@@ -48,6 +48,28 @@ export class Credential implements IGrabbable {
       metalness: 0.1
     });
 
+    // Carga automática si el diseñador sube su propia textura a public/textures/
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load(
+      'textures/credential_front.png',
+      (customTex) => {
+        frontMat.map = customTex;
+        frontMat.needsUpdate = true;
+      },
+      undefined,
+      () => {} // Fallback silencioso a la textura procedural ya generada
+    );
+
+    texLoader.load(
+      'textures/credential_back.png',
+      (customTex) => {
+        backMat.map = customTex;
+        backMat.needsUpdate = true;
+      },
+      undefined,
+      () => {}
+    );
+
     this.material = frontMat;
     const materials = [edgeMat, edgeMat, edgeMat, edgeMat, frontMat, backMat];
 
