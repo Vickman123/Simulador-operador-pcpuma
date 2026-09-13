@@ -101,9 +101,9 @@ export class LoanManager {
     });
 
     // 4b. Estudiante recibe el equipo en sus manos
-    events.on('STUDENT_RECEIVED_LAPTOP', (data: { laptopId: string }) => {
-      const tag = data.laptopId === 'laptop_02' ? 'PC-PUMA-02' : data.laptopId.toUpperCase();
-      this.registerActiveLoan(data.laptopId, tag);
+    events.on('STUDENT_RECEIVED_LAPTOP', (data: { laptopId: string; studentName?: string; accountNumber?: string; career?: string }) => {
+      const tag = data.laptopId === 'laptop_02' ? 'PC-PUMA-02' : (data.laptopId === 'laptop_01' ? 'PC-PUMA-01' : data.laptopId.toUpperCase());
+      this.registerActiveLoan(data.laptopId, tag, data.studentName, data.accountNumber, data.career);
     });
 
     // 5. Estudiante deposita laptop para devolución en el mostrador
@@ -131,9 +131,17 @@ export class LoanManager {
       }
     });
 
+    // 6b. Firma de acta de incidencia oficial UNAM
+    events.on('INCIDENT_ACT_SIGNED', () => {
+      if (this.currentLoan) {
+        this.currentLoan.inspectionVerdict = 'INCIDENCIA';
+      }
+      this.setState('INSPECTED_INCIDENCIA');
+    });
+
     // 7. Laptop resguardada nuevamente en el Carro 01
     events.on('LAPTOP_SNAPPED_TO_CART', (_data: { id: string; slotIndex: number }) => {
-      // Laptop resguardada, queda pendiente entregar credencial a Juan
+      // Laptop resguardada, queda pendiente entregar credencial
     });
 
     // 8. Devolución de la credencial al estudiante para finalizar el trámite oficial
@@ -155,12 +163,19 @@ export class LoanManager {
     }
   }
 
-  public registerActiveLoan(laptopId: string, laptopTag: string): void {
+  public registerActiveLoan(
+    laptopId: string,
+    laptopTag: string,
+    studentName: string = 'Juan Pérez López',
+    accountNumber: string = '32145678',
+    career: string = 'Facultad de Ingeniería'
+  ): void {
+    const loanSuffix = Math.floor(1000 + Math.random() * 9000);
     this.currentLoan = {
-      loanId: 'PUMA-2026-0842',
-      studentName: 'Juan Pérez López',
-      accountNumber: '32145678',
-      career: 'Facultad de Ingeniería',
+      loanId: `PUMA-2026-${loanSuffix}`,
+      studentName,
+      accountNumber,
+      career,
       laptopId,
       laptopTag,
       startTime: new Date(),

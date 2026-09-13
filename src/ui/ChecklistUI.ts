@@ -6,6 +6,7 @@ export class ChecklistUI {
   private banner: HTMLElement;
   private modal: HTMLElement | null = null;
   private isCollapsed: boolean = false;
+  private currentStudentInfo: string = 'Juan Pérez López (1/3)';
 
   constructor() {
     this.container = document.createElement('div');
@@ -31,6 +32,25 @@ export class ChecklistUI {
       this.container.classList.add('panel-fade-in');
       this.banner.classList.add('banner-fade-in');
     });
+
+    events.on('ACTIVE_STUDENT_CHANGED', (data: { student: { name: string }; index: number; total: number }) => {
+      this.currentStudentInfo = `${data.student.name} (${data.index}/${data.total})`;
+      this.render();
+      this.updateBanner();
+    });
+
+    events.on('NEXT_STUDENT_APPROACHING', (data: { student: { name: string }; queueIndex: number; totalQueue: number }) => {
+      this.currentStudentInfo = `Siguiente: ${data.student.name} (${data.queueIndex}/${data.totalQueue})...`;
+      this.render();
+      this.updateBanner();
+    });
+
+    events.on('ALL_STUDENTS_COMPLETED', () => {
+      this.currentStudentInfo = `✔ 3/3 Alumnos Atendidos`;
+      this.render();
+      this.updateBanner();
+    });
+
     events.on('TUTORIAL_TASK_COMPLETED', () => {
       this.render();
       this.updateBanner();
@@ -63,7 +83,7 @@ export class ChecklistUI {
           <span class="checklist-icon">📋</span>
           <div>
             <h3 class="checklist-title">Checklist de Operación</h3>
-            <span class="checklist-subtitle">PC PUMA • Ciclo Completo de Préstamo y Devolución</span>
+            <span class="checklist-subtitle">PC PUMA • ${this.currentStudentInfo}</span>
           </div>
         </div>
         <button id="btn-toggle-checklist" class="btn-toggle" title="Minimizar / Expandir">

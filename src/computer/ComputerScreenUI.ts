@@ -3,6 +3,7 @@ import { inventory, EquipmentItem } from '../inventory/InventoryManager';
 import { loanManager } from '../loan/LoanManager';
 import { scoreManager } from '../score/ScoreManager';
 import { events } from '../core/EventBus';
+import { STUDENT_QUEUE, StudentProfile } from '../npc/NPCManager';
 
 export type ScreenTab = 'INICIO' | 'USUARIO' | 'INVENTARIO' | 'PRESTAMO' | 'DEVOLUCION' | 'INSPECCION' | 'RESULTADOS';
 
@@ -33,6 +34,9 @@ export class ComputerScreenUI {
   private isCredentialScanned: boolean = false;
   private selectedLaptopForLoan: string = 'Laptop 02';
   private inspectionDecision: 'NONE' | 'BUEN_ESTADO' | 'INCIDENCIA' = 'NONE';
+  private activeStudent: StudentProfile = STUDENT_QUEUE[0];
+  private incidentActSigned: boolean = false;
+  private loanRejected: boolean = false;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -73,11 +77,42 @@ export class ComputerScreenUI {
       this.render();
     });
 
+    // Escuchar cambio de alumno activo en la cola
+    events.on('ACTIVE_STUDENT_CHANGED', (data: { student: StudentProfile; index: number; total: number }) => {
+      this.activeStudent = data.student;
+      this.isCredentialScanned = false;
+      this.isUserValidated = false;
+      this.inspectionDecision = 'NONE';
+      this.incidentActSigned = false;
+      this.loanRejected = false;
+      this.render();
+    });
+
+    // Escuchar cuando todos los alumnos han concluido su atención
+    events.on('ALL_STUDENTS_COMPLETED', () => {
+      this.setTab('RESULTADOS');
+    });
+
+    // Escuchar firma de acta de incidencia
+    events.on('INCIDENT_ACT_SIGNED', () => {
+      this.incidentActSigned = true;
+      this.render();
+    });
+
+    // Escuchar rechazo normativo por sanción
+    events.on('LOAN_REJECTED_SANCTION', () => {
+      this.loanRejected = true;
+      this.render();
+    });
+
     // Escuchar reinicio de turno
     events.on('SHIFT_RESET', () => {
+      this.activeStudent = STUDENT_QUEUE[0];
       this.isUserValidated = false;
       this.isCredentialScanned = false;
       this.inspectionDecision = 'NONE';
+      this.incidentActSigned = false;
+      this.loanRejected = false;
       this.setTab('INICIO');
     });
 
@@ -318,13 +353,14 @@ export class ComputerScreenUI {
 
   private renderViewUsuario(w: number, _h: number): void {
     const ctx = this.ctx;
+    const isSanctioned = this.activeStudent.academicStatus === 'SANCIONADO';
 
     ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
     ctx.fillRect(40, 115, w - 80, 420);
-    ctx.strokeStyle = 'rgba(213, 159, 15, 0.4)';
+    ctx.strokeStyle = isSanctioned ? 'rgba(239, 68, 68, 0.6)' : 'rgba(213, 159, 15, 0.4)';
     ctx.strokeRect(40, 115, w - 80, 420);
 
-    ctx.fillStyle = '#D59F0F';
+    ctx.fillStyle = isSanctioned ? '#EF4444' : '#D59F0F';
     ctx.font = 'bold 24px sans-serif';
     ctx.fillText('DATOS DEL ESTUDIANTE SOLICITANTE', 70, 155);
 
@@ -332,7 +368,7 @@ export class ComputerScreenUI {
     if (this.isCredentialScanned) {
       ctx.fillStyle = '#10B981';
       ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('📡 CREDENCIAL LEÍDA POR SENSOR NFC EN MOSTRADOR [ID: 32145678]', 70, 185);
+      ctx.fillText(`📡 CREDENCIAL LEÍDA POR SENSOR NFC EN MOSTRADOR [ID: ${this.activeStudent.accountNumber}]`, 70, 185);
     } else {
       ctx.fillStyle = '#94A3B8';
       ctx.font = '14px sans-serif';
@@ -340,13 +376,21 @@ export class ComputerScreenUI {
     }
 
     const dataRows = [
-      { label: 'Nombre:', val: 'Juan Pérez López' },
-      { label: 'Número de cuenta:', val: '32145678' },
-      { label: 'Tipo de usuario:', val: 'Alumno UNAM' },
-      { label: 'Facultad / Escuela:', val: 'Facultad de Ingeniería' },
-      { label: 'Estatus académico:', val: 'ACTIVO REGULAR' },
-      { label: 'Préstamos activos:', val: '0 equipos' },
-      { label: 'Sanciones acumuladas:', val: '0 incidencias' }
+      { label: 'Nombre:', val: this.activeStudent.name, color: '#FFFFFF' },
+      { label: 'Número de cuenta:', val: this.activeStudent.accountNumber, color: '#FFFFFF' },
+      { label: 'Tipo de usuario:', val: 'Alumno UNAM', color: '#FFFFFF' },
+      { label: 'Facultad / Escuela:', val: this.activeStudent.career, color: '#FFFFFF' },
+      {
+        label: 'Estatus académico:',
+        val: isSanctioned ? '✖ RESTRINGIDO / SANCIONADO' : 'ACTIVO REGULAR',
+        color: isSanctioned ? '#EF4444' : '#10B981'
+      },
+      { label: 'Préstamos activos:', val: '0 equipos', color: '#FFFFFF' },
+      {
+        label: 'Sanciones acumuladas:',
+        val: isSanctioned ? '1 ACTIVA (Adeudo PC-PUMA-01)' : '0 incidencias',
+        color: isSanctioned ? '#EF4444' : '#10B981'
+      }
     ];
 
     dataRows.forEach((row, idx) => {
@@ -355,53 +399,103 @@ export class ComputerScreenUI {
       ctx.font = '16px sans-serif';
       ctx.fillText(row.label, 70, y);
 
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = row.color;
       ctx.font = 'bold 17px monospace';
       ctx.fillText(row.val, 280, y);
     });
 
-    // Indicador de validación
-    ctx.fillStyle = this.isUserValidated ? '#10B981' : '#F59E0B';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText(
-      this.isUserValidated ? '✔ USUARIO VALIDADO CORRECTAMENTE' : '⚠ PENDIENTE DE VALIDACIÓN',
-      600,
-      230
-    );
+    if (isSanctioned) {
+      // Panel de sanción activa normativa
+      const boxX = 570;
+      const boxW = 380;
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.16)';
+      ctx.fillRect(boxX, 160, boxW, 110);
+      ctx.strokeStyle = '#EF4444';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(boxX, 160, boxW, 110);
 
-    // Botón de validación
-    this.registerButton({
-      id: 'btn_validar_usuario',
-      x: 600,
-      y: 270,
-      w: 320,
-      h: 60,
-      label: this.isUserValidated ? 'REVOCAR VALIDACIÓN' : '[ VALIDAR USUARIO ]',
-      bgColor: this.isUserValidated ? '#475569' : '#10B981',
-      activeBgColor: this.isUserValidated ? '#64748B' : '#059669',
-      textColor: '#FFFFFF',
-      action: () => {
-        this.isUserValidated = !this.isUserValidated;
-        events.emit('USER_VALIDATION_TOGGLED', this.isUserValidated);
-        if (this.isUserValidated) {
-          this.setTab('PRESTAMO');
-        }
-      }
-    });
+      ctx.fillStyle = '#EF4444';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('⛔ RESTRICCIÓN NORMATIVA VIGENTE', boxX + 16, 190);
 
-    if (this.isUserValidated) {
+      ctx.fillStyle = '#CBD5E1';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(this.activeStudent.sanctionReason || 'Adeudo de equipo previo', boxX + 16, 218);
+      ctx.fillText('Art. 31: Denegación obligatoria de préstamo.', boxX + 16, 240);
+
+      // Botón de rechazo normativo
       this.registerButton({
-        id: 'btn_pasar_prestamo',
+        id: 'btn_rechazar_prestamo',
+        x: boxX,
+        y: 290,
+        w: boxW,
+        h: 65,
+        label: this.loanRejected ? '✔ RECHAZO REGISTRADO' : '[ ✖ RECHAZAR PRÉSTAMO POR NORMA ]',
+        bgColor: this.loanRejected ? '#475569' : '#DC2626',
+        activeBgColor: this.loanRejected ? '#64748B' : '#B91C1C',
+        textColor: '#FFFFFF',
+        action: () => {
+          if (!this.loanRejected) {
+            this.loanRejected = true;
+            events.emit('LOAN_REJECTED_SANCTION');
+            this.render();
+          }
+        }
+      });
+
+      if (this.loanRejected) {
+        ctx.fillStyle = '#10B981';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText('✔ Rechazo fundado registrado (+100 PTS)', boxX, 390);
+
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('➔ Devuelve la credencial a Carlos en el mostrador.', boxX, 420);
+      }
+    } else {
+      // Indicador de validación regular
+      ctx.fillStyle = this.isUserValidated ? '#10B981' : '#F59E0B';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText(
+        this.isUserValidated ? '✔ USUARIO VALIDADO CORRECTAMENTE' : '⚠ PENDIENTE DE VALIDACIÓN',
+        600,
+        230
+      );
+
+      // Botón de validación
+      this.registerButton({
+        id: 'btn_validar_usuario',
         x: 600,
-        y: 350,
+        y: 270,
         w: 320,
         h: 60,
-        label: 'SELECCIONAR EQUIPO ➔',
-        bgColor: '#D59F0F',
-        activeBgColor: '#EAB308',
-        textColor: '#001726',
-        action: () => this.setTab('PRESTAMO')
+        label: this.isUserValidated ? 'REVOCAR VALIDACIÓN' : '[ VALIDAR USUARIO ]',
+        bgColor: this.isUserValidated ? '#475569' : '#10B981',
+        activeBgColor: this.isUserValidated ? '#64748B' : '#059669',
+        textColor: '#FFFFFF',
+        action: () => {
+          this.isUserValidated = !this.isUserValidated;
+          events.emit('USER_VALIDATION_TOGGLED', this.isUserValidated);
+          if (this.isUserValidated) {
+            this.setTab('PRESTAMO');
+          }
+        }
       });
+
+      if (this.isUserValidated) {
+        this.registerButton({
+          id: 'btn_pasar_prestamo',
+          x: 600,
+          y: 350,
+          w: 320,
+          h: 60,
+          label: 'SELECCIONAR EQUIPO ➔',
+          bgColor: '#D59F0F',
+          activeBgColor: '#EAB308',
+          textColor: '#001726',
+          action: () => this.setTab('PRESTAMO')
+        });
+      }
     }
   }
 
@@ -722,20 +816,45 @@ export class ComputerScreenUI {
     });
 
     // Resultado actual
-    ctx.fillStyle = this.inspectionDecision === 'NONE' ? '#94A3B8' : (this.inspectionDecision === 'BUEN_ESTADO' ? '#10B981' : '#EF4444');
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(
-      this.inspectionDecision === 'NONE'
-        ? 'Decisión pendiente de registrar'
-        : `Dictamen: ${this.inspectionDecision === 'BUEN_ESTADO' ? 'RECEPCIÓN CONFORME' : 'INCIDENCIA REPORTADA'}`,
-      rightX + 25,
-      435
-    );
+    if (this.inspectionDecision === 'INCIDENCIA') {
+      ctx.fillStyle = '#EF4444';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('DICTAMEN: EQUIPO CON DAÑO FÍSICO', rightX + 25, 412);
 
-    if (this.inspectionDecision !== 'NONE') {
+      ctx.fillStyle = '#CBD5E1';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Falla: ${this.activeStudent.incidentType || 'Fisura en panel LCD'}`, rightX + 25, 430);
+
+      this.registerButton({
+        id: 'btn_firmar_acta_incidencia',
+        x: rightX + 25,
+        y: 442,
+        w: 385,
+        h: 52,
+        label: this.incidentActSigned ? '✔ ACTA UNAM REGISTRADA (+150 PTS)' : '[ 📋 FIRMAR ACTA Y ENVIAR A TALLER ]',
+        bgColor: this.incidentActSigned ? '#475569' : '#D97706',
+        activeBgColor: this.incidentActSigned ? '#64748B' : '#B45309',
+        textColor: '#FFFFFF',
+        action: () => {
+          if (!this.incidentActSigned) {
+            this.incidentActSigned = true;
+            events.emit('INCIDENT_ACT_SIGNED');
+            inventory.updateStatus('laptop_02', 'MANTENIMIENTO');
+            this.render();
+          }
+        }
+      });
+    } else if (this.inspectionDecision === 'BUEN_ESTADO') {
+      ctx.fillStyle = '#10B981';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('Dictamen: RECEPCIÓN CONFORME', rightX + 25, 425);
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '14px monospace';
-      ctx.fillText('➔ Lleva la laptop a la Bahía 02 del Carro 01', rightX + 25, 465);
+      ctx.fillText('➔ Lleva la laptop a la Bahía 02 del Carro 01', rightX + 25, 460);
+    } else {
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('Decisión pendiente de registrar', rightX + 25, 435);
     }
   }
 
@@ -857,7 +976,7 @@ export class ComputerScreenUI {
       ctx.fillText(kpi.val, mx + 12, my + 44);
     });
 
-    // Leaderboard Institucional UNAM
+    // Resumen de Casos de Atención del Turno
     ctx.fillStyle = 'rgba(0, 30, 55, 0.85)';
     ctx.fillRect(rightX, 280, rightW, 160);
     ctx.strokeStyle = 'rgba(213, 159, 15, 0.4)';
@@ -865,31 +984,29 @@ export class ComputerScreenUI {
 
     ctx.fillStyle = '#D59F0F';
     ctx.font = 'bold 14px sans-serif';
-    ctx.fillText('TABLA DE HONOR • OPERADORES SALA 01 (UNAM):', rightX + 16, 305);
+    ctx.fillText('CASOS DEL TURNO • ATENCIÓN A USUARIOS UNAM:', rightX + 16, 305);
 
-    const ranking = [
-      { pos: '1° 🥇', name: 'Operador Central 01', score: '2,150 pts', rank: 'EXPERTO' },
-      { pos: '2° 🥈', name: 'Tú (Operador en Turno)', score: `${scoreManager.currentScore.toLocaleString()} pts`, rank: scoreManager.getOperatorRank().replace('OPERADOR ', '') },
-      { pos: '3° 🥉', name: 'Operador Suplente 04', score: '1,320 pts', rank: 'SENIOR' }
+    const cases = [
+      { num: '1.', name: 'Juan Pérez (Ingeniería)', desc: 'Préstamo y devolución conforme', status: '✔ COMPLETADO', color: '#10B981' },
+      { num: '2.', name: 'Sofía Ramírez (Ciencias)', desc: 'Fisura en LCD • Acta UNAM levantada', status: '✔ SANCIONADA', color: '#F59E0B' },
+      { num: '3.', name: 'Carlos Mendoza (Derecho)', desc: 'Adeudo previo • Rechazo por norma', status: '✔ RESTRINGIDO', color: '#38BDF8' }
     ];
 
-    ranking.forEach((r, idx) => {
-      const ry = 335 + idx * 30;
-      ctx.fillStyle = idx === 1 ? '#10B981' : '#FFFFFF';
+    cases.forEach((c, idx) => {
+      const cy = 335 + idx * 30;
+      ctx.fillStyle = '#FFFFFF';
       ctx.font = 'bold 13px monospace';
-      ctx.fillText(r.pos, rightX + 16, ry);
+      ctx.fillText(c.num, rightX + 16, cy);
 
-      ctx.fillStyle = idx === 1 ? '#38BDF8' : '#CBD5E1';
-      ctx.font = idx === 1 ? 'bold 13px sans-serif' : '13px sans-serif';
-      ctx.fillText(r.name, rightX + 65, ry);
+      ctx.fillStyle = '#CBD5E1';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`${c.name}: ${c.desc}`, rightX + 38, cy);
 
-      ctx.fillStyle = '#D59F0F';
-      ctx.font = 'bold 13px monospace';
-      ctx.fillText(r.score, rightX + 280, ry);
-
-      ctx.fillStyle = '#94A3B8';
-      ctx.font = '11px sans-serif';
-      ctx.fillText(`[${r.rank}]`, rightX + 375, ry);
+      ctx.fillStyle = c.color;
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(c.status, rightX + rightW - 16, cy);
+      ctx.textAlign = 'left';
     });
 
     // Botón principal de reinicio para nuevo turno

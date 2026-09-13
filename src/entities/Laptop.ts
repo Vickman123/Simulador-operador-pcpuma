@@ -33,6 +33,9 @@ export class Laptop implements IGrabbable {
   private baseMesh!: THREE.Mesh;
   private lidGroup!: THREE.Group;
   private materialsToHighlight: THREE.MeshStandardMaterial[] = [];
+  private screenCanvas!: HTMLCanvasElement;
+  private screenTex!: THREE.CanvasTexture;
+  private screenMat!: THREE.MeshStandardMaterial;
   
   private _isGrabbed: boolean = false;
   private isClosed: boolean = false;
@@ -143,40 +146,14 @@ export class Laptop implements IGrabbable {
     this.lidGroup.add(lidMesh);
 
     // Pantalla activa (display interior)
-    const screenCanvas = document.createElement('canvas');
-    screenCanvas.width = 512;
-    screenCanvas.height = 320;
-    const sCtx = screenCanvas.getContext('2d')!;
+    this.screenCanvas = document.createElement('canvas');
+    this.screenCanvas.width = 512;
+    this.screenCanvas.height = 320;
+    this.drawNormalScreen();
 
-    if (this.isMaintenance) {
-      sCtx.fillStyle = '#450a0a';
-      sCtx.fillRect(0, 0, 512, 320);
-      sCtx.fillStyle = '#EF4444';
-      sCtx.font = 'bold 30px sans-serif';
-      sCtx.textAlign = 'center';
-      sCtx.fillText('EN MANTENIMIENTO', 256, 120);
-      sCtx.fillStyle = '#FFFFFF';
-      sCtx.font = '18px monospace';
-      sCtx.fillText('Falla reportada en bisagra', 256, 170);
-      sCtx.fillText(`ID: ${this.tag}`, 256, 210);
-    } else {
-      sCtx.fillStyle = '#002B49';
-      sCtx.fillRect(0, 0, 512, 320);
-      sCtx.fillStyle = '#D59F0F';
-      sCtx.font = 'bold 28px sans-serif';
-      sCtx.textAlign = 'center';
-      sCtx.fillText('PC PUMA OS', 256, 120);
-      sCtx.fillStyle = '#FFFFFF';
-      sCtx.font = '20px sans-serif';
-      sCtx.fillText(`${this.tag} • DISPONIBLE`, 256, 165);
-      sCtx.fillStyle = '#38BDF8';
-      sCtx.font = '16px monospace';
-      sCtx.fillText('Batería: 100% | Red UNAM OK', 256, 220);
-    }
-
-    const screenTex = new THREE.CanvasTexture(screenCanvas);
-    const screenMat = new THREE.MeshStandardMaterial({
-      map: screenTex,
+    this.screenTex = new THREE.CanvasTexture(this.screenCanvas);
+    this.screenMat = new THREE.MeshStandardMaterial({
+      map: this.screenTex,
       emissive: this.isMaintenance ? 0x7f1d1d : 0x1e3a8a,
       emissiveIntensity: 0.45,
       roughness: 0.2
@@ -184,7 +161,7 @@ export class Laptop implements IGrabbable {
 
     const screenMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(width * 0.92, depth * 0.86),
-      screenMat
+      this.screenMat
     );
     screenMesh.position.set(0, depth / 2, 0.005);
     this.lidGroup.add(screenMesh);
@@ -291,4 +268,88 @@ export class Laptop implements IGrabbable {
   }
 
   public update(_delta: number): void {}
+
+  private drawNormalScreen(): void {
+    const sCtx = this.screenCanvas.getContext('2d')!;
+    if (this.isMaintenance) {
+      sCtx.fillStyle = '#450a0a';
+      sCtx.fillRect(0, 0, 512, 320);
+      sCtx.fillStyle = '#EF4444';
+      sCtx.font = 'bold 30px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText('EN MANTENIMIENTO', 256, 120);
+      sCtx.fillStyle = '#FFFFFF';
+      sCtx.font = '18px monospace';
+      sCtx.fillText('Falla reportada en bisagra', 256, 170);
+      sCtx.fillText(`ID: ${this.tag}`, 256, 210);
+    } else {
+      sCtx.fillStyle = '#002B49';
+      sCtx.fillRect(0, 0, 512, 320);
+      sCtx.fillStyle = '#D59F0F';
+      sCtx.font = 'bold 28px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText('PC PUMA OS', 256, 120);
+      sCtx.fillStyle = '#FFFFFF';
+      sCtx.font = '20px sans-serif';
+      sCtx.fillText(`${this.tag} • DISPONIBLE`, 256, 165);
+      sCtx.fillStyle = '#38BDF8';
+      sCtx.font = '16px monospace';
+      sCtx.fillText('Batería: 100% | Red UNAM OK', 256, 220);
+    }
+  }
+
+  public setVisualDefect(hasDefect: boolean, defectText: string = 'FISURA EN PANEL LCD'): void {
+    const sCtx = this.screenCanvas.getContext('2d')!;
+    if (hasDefect) {
+      sCtx.fillStyle = '#0f172a';
+      sCtx.fillRect(0, 0, 512, 320);
+
+      // Líneas estilizadas de fractura / fisura en el cristal
+      sCtx.strokeStyle = '#EF4444';
+      sCtx.lineWidth = 4;
+      sCtx.beginPath();
+      sCtx.moveTo(80, 40);
+      sCtx.lineTo(210, 150);
+      sCtx.lineTo(170, 190);
+      sCtx.lineTo(320, 280);
+      sCtx.moveTo(210, 150);
+      sCtx.lineTo(310, 120);
+      sCtx.lineTo(440, 170);
+      sCtx.stroke();
+
+      // Grietas secundarias
+      sCtx.strokeStyle = '#FCA5A5';
+      sCtx.lineWidth = 2;
+      sCtx.beginPath();
+      sCtx.moveTo(210, 150);
+      sCtx.lineTo(240, 220);
+      sCtx.moveTo(310, 120);
+      sCtx.lineTo(360, 60);
+      sCtx.stroke();
+
+      // Banner de advertencia de daño
+      sCtx.fillStyle = '#DC2626';
+      sCtx.fillRect(40, 95, 432, 50);
+      sCtx.fillStyle = '#FFFFFF';
+      sCtx.font = 'bold 22px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText('⚠ DAÑO FÍSICO DETECTADO', 256, 128);
+
+      sCtx.fillStyle = '#F8FAFC';
+      sCtx.font = 'bold 16px monospace';
+      sCtx.fillText(defectText, 256, 180);
+
+      sCtx.fillStyle = '#D59F0F';
+      sCtx.font = 'bold 14px sans-serif';
+      sCtx.fillText('ART. 24 REGLAMENTO PC PUMA • REQUIERE SANCIÓN', 256, 220);
+
+      this.screenMat.emissive.setHex(0x991b1b);
+      this.screenMat.emissiveIntensity = 0.7;
+    } else {
+      this.drawNormalScreen();
+      this.screenMat.emissive.setHex(this.isMaintenance ? 0x7f1d1d : 0x1e3a8a);
+      this.screenMat.emissiveIntensity = 0.45;
+    }
+    this.screenTex.needsUpdate = true;
+  }
 }

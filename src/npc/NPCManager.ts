@@ -17,18 +17,75 @@ export type NPCWorkflow =
   | 'WORKING'
   | 'RETURNING_TO_COUNTER'
   | 'AT_COUNTER_RETURNING'
+  | 'AT_COUNTER_REJECTED'
   | 'EXITING'
   | 'COMPLETED';
 
+export interface StudentProfile extends StudentConfig {
+  academicStatus: 'REGULAR' | 'SANCIONADO';
+  sanctionReason?: string;
+  hasIncidentOnReturn?: boolean;
+  incidentType?: string;
+  welcomeMessage: string;
+  returnMessage?: string;
+}
+
+export const STUDENT_QUEUE: StudentProfile[] = [
+  {
+    id: 'student_juan_perez',
+    name: 'Juan Pérez López',
+    accountNumber: '32145678',
+    career: 'Facultad de Ingeniería',
+    jacketColor: 0x002B49, // Azul UNAM
+    pantsColor: 0x1E293B,  // Pantalón casual
+    hairColor: 0x1F2937,   // Cabello oscuro
+    academicStatus: 'REGULAR',
+    hasIncidentOnReturn: false,
+    welcomeMessage: '¡Hola! Vengo a solicitar un préstamo de laptop para mi práctica.',
+    returnMessage: 'Aquí tienes la laptop y mi credencial para registrar la devolución. ¿Todo en orden?'
+  },
+  {
+    id: 'student_sofia_ramirez',
+    name: 'Sofía Ramírez Mendoza',
+    accountNumber: '31987452',
+    career: 'Facultad de Ciencias',
+    jacketColor: 0x8B1E3F, // Borgoña / Vino UNAM
+    pantsColor: 0x334155,  // Pantalón mezclilla
+    hairColor: 0x4A2E18,   // Castaño claro
+    academicStatus: 'REGULAR',
+    hasIncidentOnReturn: true,
+    incidentType: 'Fisura en panel LCD por golpe en mesa de estudio',
+    welcomeMessage: '¡Hola, buenas tardes! Vengo a solicitar una laptop para avanzar mi tesis.',
+    returnMessage: 'Hola operador... vengo a devolver el equipo, pero tuve un accidente en la mesa y se golpeó la pantalla...'
+  },
+  {
+    id: 'student_carlos_mendoza',
+    name: 'Carlos Mendoza Rivas',
+    accountNumber: '32098411',
+    career: 'Facultad de Derecho',
+    jacketColor: 0x0F766E, // Verde esmeralda UNAM
+    pantsColor: 0x0F172A,  // Formal oscuro
+    hairColor: 0x111827,   // Cabello negro
+    academicStatus: 'SANCIONADO',
+    sanctionReason: 'Suspensión activa por adeudo previo (Folio INC-8821)',
+    hasIncidentOnReturn: false,
+    welcomeMessage: '¡Hola! Necesito una laptop para consultar jurisprudencia, por favor.'
+  }
+];
+
 export class NPCManager {
-  public student: StudentNPC;
+  private static instance: NPCManager;
+
+  public student!: StudentNPC;
   public currentState: NPCWorkflow = 'ENTERING';
+  public currentStudentIndex: number = 0;
 
   // Rutas en el módulo
   private readonly entrancePos = new THREE.Vector3(0.65, 0, 3.7);
   private readonly counterPos = new THREE.Vector3(0.65, 0, 0.55);
   private readonly workChairPos = new THREE.Vector3(-1.6, 0, 2.05);
 
+  private scene: THREE.Scene;
   private credentialRef?: Credential;
   private laptopsRef: Laptop[] = [];
   private studySessionTimeout: any = null;
@@ -43,23 +100,75 @@ export class NPCManager {
   private isSimulationStarted: boolean = false;
 
   constructor(scene: THREE.Scene) {
-    // 1. Configuración de Juan Pérez López (NPC 1 - Alumno Correcto)
-    const juanConfig: StudentConfig = {
-      id: 'student_juan_perez',
-      name: 'Juan Pérez López',
-      accountNumber: '32145678',
-      career: 'Facultad de Ingeniería',
-      jacketColor: 0x002B49, // Azul UNAM
-      pantsColor: 0x1E293B,  // Pantalón casual
-      hairColor: 0x1F2937    // Cabello oscuro
-    };
+    NPCManager.instance = this;
+    this.scene = scene;
 
-    this.student = new StudentNPC(juanConfig);
+    this.loadStudent(0);
+    this.setupListeners();
+  }
+
+  public static getInstance(): NPCManager {
+    return NPCManager.instance;
+  }
+
+  public getCurrentStudent(): StudentProfile {
+    return STUDENT_QUEUE[this.currentStudentIndex] || STUDENT_QUEUE[0];
+  }
+
+  public loadStudent(index: number): void {
+    if (index >= STUDENT_QUEUE.length) return;
+    this.currentStudentIndex = index;
+    const profile = STUDENT_QUEUE[index];
+
+    if (this.student) {
+      this.scene.remove(this.student.group);
+    }
+
+    this.student = new StudentNPC(profile);
     this.student.group.position.copy(this.entrancePos);
     this.student.group.rotation.y = Math.PI; // Mirando hacia el mostrador
-    scene.add(this.student.group);
+    this.scene.add(this.student.group);
 
-    this.setupListeners();
+    if (this.credentialRef) {
+      this.credentialRef.updateStudentData(profile.name, profile.accountNumber, profile.career);
+      this.credentialRef.group.visible = false;
+      this.credentialRef.group.position.set(0.35, 1.102, 0.12);
+      this.credentialRef.group.rotation.set(0, -Math.PI / 10, 0);
+    }
+
+    // Resetear banderas de interacción para el nuevo alumno
+    this.currentState = 'ENTERING';
+    this.isCredentialScanned = false;
+    this.isUserValidated = false;
+    this.hasStudentReceivedCredentialInitial = false;
+    this.isReturnCredentialScanned = false;
+    this.isLaptopStoredInCart = false;
+    this.hasReturnedCredentialFinal = false;
+
+    events.emit('ACTIVE_STUDENT_CHANGED', {
+      student: profile,
+      index: index + 1,
+      total: STUDENT_QUEUE.length
+    });
+  }
+
+  private advanceToNextStudent(): void {
+    const nextIdx = this.currentStudentIndex + 1;
+    if (nextIdx < STUDENT_QUEUE.length) {
+      const nextProfile = STUDENT_QUEUE[nextIdx];
+      events.emit('NEXT_STUDENT_APPROACHING', {
+        student: nextProfile,
+        queueIndex: nextIdx + 1,
+        totalQueue: STUDENT_QUEUE.length
+      });
+
+      setTimeout(() => {
+        this.loadStudent(nextIdx);
+        this.startStudentFlow();
+      }, 3200);
+    } else {
+      events.emit('ALL_STUDENTS_COMPLETED');
+    }
   }
 
   public setCredential(cred: Credential): void {
@@ -155,6 +264,22 @@ export class NPCManager {
       }
     });
 
+    // Rechazo de préstamo por sanción institucional normativa (Fase 7)
+    events.on('LOAN_REJECTED_SANCTION', () => {
+      if (this.currentState === 'AT_COUNTER' || this.currentState === 'WAITING_VALIDATION') {
+        this.currentState = 'AT_COUNTER_REJECTED';
+        audio.playWarningBeep();
+        this.student.say('Entiendo, tengo que pasar a la coordinación a resolver mi adeudo antes de solicitar equipo. Por favor devuélveme mi credencial.', 5.0);
+      }
+    });
+
+    // Acta de incidencia firmada por el operador (Fase 7)
+    events.on('INCIDENT_ACT_SIGNED', () => {
+      if (this.currentState === 'AT_COUNTER_RETURNING') {
+        this.student.say('Comprendo la situación. Firmaré el acta de incidencia en la coordinación. Por favor devuélveme mi credencial.', 5.0);
+      }
+    });
+
     // Reinicio de turno institucional (Fase 6)
     events.on('SHIFT_RESET', () => {
       this.resetNPC();
@@ -173,23 +298,35 @@ export class NPCManager {
   }
 
   private startStudentFlow(): void {
+    const currentProfile = STUDENT_QUEUE[this.currentStudentIndex];
     // Iniciar caminata desde la puerta hacia el mostrador de atención
     setTimeout(() => {
       this.student.setTarget(this.counterPos, 1.4);
-      this.student.say('¡Hola! Vengo a solicitar un préstamo de laptop.', 4.0);
+      this.student.say(currentProfile.welcomeMessage, 4.0);
     }, 1200);
   }
 
   private deliverLaptopToStudent(laptop: Laptop): void {
     this.currentState = 'RECEIVING_EQUIPMENT';
     this.student.say('¡Muchas gracias! Voy a la mesa a avanzar mi proyecto.', 4.5);
-    events.emit('STUDENT_RECEIVED_LAPTOP', { laptopId: laptop.id, studentName: this.student.config.name });
+    events.emit('STUDENT_RECEIVED_LAPTOP', {
+      laptopId: laptop.id,
+      studentName: this.student.config.name,
+      accountNumber: this.student.config.accountNumber,
+      career: this.student.config.career
+    });
 
     // Pequeño retardo natural para recoger la laptop
     setTimeout(() => {
       this.student.receiveLaptop(laptop);
       inventory.updateStatus(laptop.id, 'PRESTADO');
-      loanManager.registerActiveLoan(laptop.id, laptop.tag);
+      loanManager.registerActiveLoan(
+        laptop.id,
+        laptop.tag,
+        this.student.config.name,
+        this.student.config.accountNumber,
+        this.student.config.career
+      );
       this.currentState = 'WALKING_TO_DESK';
 
       // Caminar hacia la silla de estudio
@@ -208,8 +345,15 @@ export class NPCManager {
     if (this.currentState === 'WORKING') {
       this.student.standFromDesk();
     }
+
+    const currentProfile = STUDENT_QUEUE[this.currentStudentIndex];
+    // Si este alumno tiene un defecto asignado (ej. Sofía con pantalla rota), activarlo en la laptop
+    if (this.student.heldLaptop && currentProfile.hasIncidentOnReturn) {
+      this.student.heldLaptop.setVisualDefect(true, currentProfile.incidentType || 'FISURA EN PANTALLA LCD');
+    }
+
     this.currentState = 'RETURNING_TO_COUNTER';
-    this.student.say('¡Listo! Ya terminé mi práctica de laboratorio. Voy a devolver la laptop al mostrador.', 4.5);
+    this.student.say(currentProfile.returnMessage || '¡Listo! Ya terminé mi práctica de laboratorio. Voy a devolver la laptop al mostrador.', 4.5);
 
     // Pausa breve para levantarse y enfilarse al mostrador
     setTimeout(() => {
@@ -254,6 +398,7 @@ export class NPCManager {
           this.credentialRef.group.visible = true;
           audio.playThudSound();
         }
+        const currentProfile = STUDENT_QUEUE[this.currentStudentIndex];
         if (this.isUserValidated) {
           this.currentState = 'WAITING_EQUIPMENT';
           this.student.say('¡Hola! Veo que ya validaste mis datos. Devuélveme mi credencial para recibir la laptop.', 4.0);
@@ -262,7 +407,7 @@ export class NPCManager {
           this.student.say('¡Hola! Ya escaneaste mi credencial. Por favor confirma mi validación en el monitor.', 4.0);
         } else {
           this.currentState = 'AT_COUNTER';
-          this.student.say('¡Hola! Vengo a solicitar un préstamo de laptop. Aquí tienes mi credencial.', 4.5);
+          this.student.say(currentProfile.welcomeMessage, 4.5);
         }
         events.emit('STUDENT_AT_COUNTER', { studentName: this.student.config.name });
       }
@@ -297,7 +442,7 @@ export class NPCManager {
           events.emit('LAPTOP_RETURNED_TO_COUNTER', { laptopId: returnedLaptop.id, laptop: returnedLaptop });
         }
 
-        // Juan también coloca su credencial sobre el mostrador para el registro de devolución
+        // El alumno también coloca su credencial sobre el mostrador para el registro de devolución
         if (this.credentialRef) {
           this.credentialRef.group.position.set(0.35, 1.102, 0.12);
           this.credentialRef.group.rotation.set(0, -Math.PI / 10, 0);
@@ -307,8 +452,9 @@ export class NPCManager {
         this.isLaptopStoredInCart = false;
         this.hasReturnedCredentialFinal = false;
 
+        const currentProfile = STUDENT_QUEUE[this.currentStudentIndex];
         audio.playThudSound();
-        this.student.say('Aquí tienes la laptop y mi credencial para registrar la devolución. ¿Todo en orden?', 5.0);
+        this.student.say(currentProfile.returnMessage || 'Aquí tienes la laptop y mi credencial para registrar la devolución. ¿Todo en orden?', 5.0);
         events.emit('LOAN_RETURN_READY_FOR_INSPECTION');
       }
     }
@@ -346,6 +492,19 @@ export class NPCManager {
           this.student.exitRoom(this.entrancePos);
         }, 1600);
       }
+
+      // C) Devolución de credencial al alumno rechazado por normativa (Carlos)
+      if (this.currentState === 'AT_COUNTER_REJECTED' && isNearJuanDesk) {
+        this.credentialRef.group.visible = false;
+        audio.playVictoryChime();
+        this.student.say('Gracias por devolverme mi credencial. Pasaré a la coordinación a resolver mi adeudo. ¡Hasta luego!', 5.0);
+        events.emit('STUDENT_RECEIVED_CREDENTIAL_REJECTED', { studentName: this.student.config.name });
+
+        setTimeout(() => {
+          this.currentState = 'EXITING';
+          this.student.exitRoom(this.entrancePos);
+        }, 1600);
+      }
     }
 
     // 4. Detección de salida del aula por la puerta general
@@ -354,7 +513,8 @@ export class NPCManager {
       if (dist < 0.25) {
         this.currentState = 'COMPLETED';
         this.student.group.visible = false;
-        events.emit('STUDENT_EXITED_ROOM');
+        events.emit('STUDENT_EXITED_ROOM', { studentName: this.student.config.name });
+        this.advanceToNextStudent();
       }
     }
   }

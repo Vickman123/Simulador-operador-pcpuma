@@ -91,7 +91,22 @@ export class ScoreManager {
       this.addPoints("Resguardo y conexión de recarga en Carro 01", 50, true);
     });
 
-    // 6. Devolución final de credencial (+100 pts)
+    // 5b. Firma de Acta de Incidencia Oficial (+150 pts)
+    events.on("INCIDENT_ACT_SIGNED", () => {
+      this.addPoints("Levantamiento y firma de Acta de Incidencia Oficial UNAM (Art. 24)", 150, true);
+    });
+
+    // 5c. Rechazo reglamentario de alumno con sanción (+100 pts)
+    events.on("LOAN_REJECTED_SANCTION", () => {
+      this.addPoints("Detección de sanción previa y rechazo reglamentario (Art. 31)", 100, true);
+    });
+
+    // 5d. Devolución de credencial a alumno rechazado (+50 pts)
+    events.on("STUDENT_RECEIVED_CREDENTIAL_REJECTED", () => {
+      this.addPoints("Devolución reglamentaria de credencial tras rechazo", 50, true);
+    });
+
+    // 6. Devolución final de credencial (+50 pts + bono si 0 errores)
     events.on("STUDENT_RECEIVED_CREDENTIAL_RETURN", () => {
       this.addPoints("Devolución final de credencial y cierre de trámite", 50, true);
       // Bono adicional por ciclo completo impecable si no hubo errores

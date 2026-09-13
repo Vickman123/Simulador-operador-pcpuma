@@ -9,6 +9,12 @@ export class Credential implements IGrabbable {
   private material: THREE.MeshStandardMaterial;
 
   private _isGrabbed: boolean = false;
+  private frontCanvas: HTMLCanvasElement | null = null;
+  private frontTex: THREE.CanvasTexture | null = null;
+  private currentStudentName: string = 'JUAN PÉREZ LÓPEZ';
+  private currentAccountNumber: string = '32145678';
+  private currentCareer: string = 'FACULTAD DE INGENIERÍA';
+
   // Posición inicial sobre el mostrador (Superficie del mostrador: Y = 1.100m)
   private initialPosition = new THREE.Vector3(0.35, 1.102, 0.12);
   private initialRotation = new THREE.Euler(0, -Math.PI / 10, 0);
@@ -66,11 +72,20 @@ export class Credential implements IGrabbable {
     this.group.rotation.copy(this.initialRotation);
   }
 
-  private createFrontTexture(): THREE.CanvasTexture {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 320;
+  public updateStudentData(name: string, accountNumber: string, career: string): void {
+    this.currentStudentName = name.toUpperCase();
+    this.currentAccountNumber = accountNumber;
+    this.currentCareer = career.toUpperCase();
+
+    if (this.frontCanvas && this.frontTex) {
+      this.drawFrontCanvas(this.frontCanvas);
+      this.frontTex.needsUpdate = true;
+    }
+  }
+
+  private drawFrontCanvas(canvas: HTMLCanvasElement): void {
     const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Fondo azul UNAM con degradado
     const grad = ctx.createLinearGradient(0, 0, 512, 320);
@@ -119,22 +134,22 @@ export class Credential implements IGrabbable {
     ctx.fillText('CREDENCIAL DE ALUMNO', 165, 80);
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('JUAN PÉREZ LÓPEZ', 165, 115);
+    ctx.font = 'bold 21px sans-serif';
+    ctx.fillText(this.currentStudentName, 165, 115);
 
     ctx.fillStyle = '#94A3B8';
     ctx.font = '13px sans-serif';
     ctx.fillText('NO. DE CUENTA:', 165, 145);
     ctx.fillStyle = '#38BDF8';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('32145678', 165, 172);
+    ctx.fillText(this.currentAccountNumber, 165, 172);
 
     ctx.fillStyle = '#94A3B8';
     ctx.font = '13px sans-serif';
     ctx.fillText('CARRERA:', 165, 202);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 15px sans-serif';
-    ctx.fillText('FACULTAD DE INGENIERÍA', 165, 224);
+    ctx.fillText(this.currentCareer, 165, 224);
 
     // Chip NFC dorado
     ctx.fillStyle = '#EAB308';
@@ -147,10 +162,16 @@ export class Credential implements IGrabbable {
     ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('((•))', 452, 98);
+  }
 
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.generateMipmaps = true;
-    return tex;
+  private createFrontTexture(): THREE.CanvasTexture {
+    this.frontCanvas = document.createElement('canvas');
+    this.frontCanvas.width = 512;
+    this.frontCanvas.height = 320;
+    this.drawFrontCanvas(this.frontCanvas);
+
+    this.frontTex = new THREE.CanvasTexture(this.frontCanvas);
+    return this.frontTex;
   }
 
   private createBackTexture(): THREE.CanvasTexture {
