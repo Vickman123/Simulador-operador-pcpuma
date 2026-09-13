@@ -31,6 +31,19 @@ export class XRManager {
     const button = VRButton.createButton(this.renderer);
     button.id = 'VRButton';
     document.body.appendChild(button);
+
+    // Detección reactiva de disponibilidad WebXR para activar estilos azules
+    const checkState = () => {
+      if (button.textContent && button.textContent.toUpperCase().includes('ENTER')) {
+        button.classList.add('vr-ready');
+      } else {
+        button.classList.remove('vr-ready');
+      }
+    };
+    checkState();
+
+    const observer = new MutationObserver(checkState);
+    observer.observe(button, { childList: true, characterData: true, subtree: true });
   }
 
   private setupControllers(): void {
@@ -40,9 +53,9 @@ export class XRManager {
         new THREE.Vector3(0, 0, -2.5)
       ]);
       const material = new THREE.LineBasicMaterial({
-        color: 0xD59F0F,
+        color: 0x0076F5,
         transparent: true,
-        opacity: 0.65
+        opacity: 0.75
       });
       const line = new THREE.Line(geometry, material);
       line.name = 'LaserRay';

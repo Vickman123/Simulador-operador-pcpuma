@@ -214,10 +214,10 @@ export class StudentNPC {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Globo estilo institucional
-    ctx.fillStyle = 'rgba(0, 27, 48, 0.95)';
-    ctx.strokeStyle = '#D59F0F';
-    ctx.lineWidth = 6;
+    // Globo estilo institucional blanco y azul PC PUMA
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+    ctx.strokeStyle = '#0076F5';
+    ctx.lineWidth = 5;
 
     // Cuerpo del globo
     ctx.beginPath();
@@ -234,15 +234,15 @@ export class StudentNPC {
     ctx.fill();
     ctx.stroke();
 
-    // Nombre del Alumno
-    ctx.fillStyle = '#D59F0F';
-    ctx.font = 'bold 24px sans-serif';
+    // Nombre del Alumno en azul institucional
+    ctx.fillStyle = '#003B7A';
+    ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`${this.config.name} (${this.config.career})`, w / 2, 50);
 
-    // Texto del mensaje
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '22px sans-serif';
+    // Texto del mensaje en gris oscuro de alto contraste
+    ctx.fillStyle = '#1E293B';
+    ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     
     // Auto-salto de línea sencillo
     const words = text.split(' ');
