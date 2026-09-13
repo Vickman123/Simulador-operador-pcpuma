@@ -138,6 +138,13 @@ export class InteractionSystem {
         this.heldGrabbable.rotateHeld?.(deltaAngle);
       }
     });
+
+    // 8. Ajuste de distancia de objeto sostenido desde teclado (X/Y) o rueda de ratón
+    events.on('INTERACTION_ADJUST_DISTANCE', (deltaDistance: number) => {
+      if (this.heldGrabbable) {
+        this.heldGrabbable.adjustDistance?.(deltaDistance);
+      }
+    });
   }
 
   private handleAction(holder: THREE.Object3D): void {
@@ -529,6 +536,19 @@ export class InteractionSystem {
         }
       }
 
+      // Acercar / Alejar con mando izquierdo en VR (Botón X acercar, Botón Y alejar)
+      if (gamepads.left && gamepads.left.buttons) {
+        const btnX = gamepads.left.buttons[4]?.pressed; // Botón X (inferior)
+        const btnY = gamepads.left.buttons[5]?.pressed; // Botón Y (superior)
+        const distSpeed = 0.45 * delta;
+
+        if (btnX) {
+          this.heldGrabbable.adjustDistance?.(distSpeed); // Acercar hacia la vista
+        } else if (btnY) {
+          this.heldGrabbable.adjustDistance?.(-distSpeed); // Alejar de la vista
+        }
+      }
+
       // A) Sosteniendo credencial:
       if (this.heldGrabbable instanceof Credential && this.nfcScanner) {
         let hitNFC = false;
@@ -546,13 +566,13 @@ export class InteractionSystem {
         if (hitNFC || this.isNearNFCScanner()) {
           events.emit('OBJECT_HOVER_START', {
             id: 'nfc_placement',
-            prompt: '[Q / R] Rotar  |  [F] Colocar en Lector NFC  |  [E] Soltar en Mostrador',
+            prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [F] Colocar en NFC | [E] Soltar',
             key: 'F'
           });
         } else {
           events.emit('OBJECT_HOVER_START', {
             id: 'holding_card',
-            prompt: '[Q / R] Rotar  |  [E] Soltar en Mostrador  |  [F] Colocar en Lector NFC',
+            prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [E] Soltar | [F] Lector NFC',
             key: 'E'
           });
         }
@@ -591,13 +611,13 @@ export class InteractionSystem {
           const bayLabel = targetedBay ? `Bahía 0${targetedBay}` : 'Bahía del Carro 01';
           events.emit('OBJECT_HOVER_START', {
             id: 'dock_laptop',
-            prompt: `[Q / R] Rotar  |  [F] o [Click] Guardar en ${bayLabel}  |  [E] Entregar`,
+            prompt: `[Q/R] Rotar | [X/Y o Rueda] Zoom | [F] Guardar en ${bayLabel} | [E] Entregar`,
             key: 'F'
           });
         } else {
           events.emit('OBJECT_HOVER_START', {
             id: 'holding_laptop',
-            prompt: '[Q / R] Rotar  |  [E] o [Click] Entregar en Mostrador  |  [F] Guardar en Carro',
+            prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [E] Entregar en Mostrador | [F] Carro',
             key: 'E'
           });
         }

@@ -40,6 +40,7 @@ export class NPCManager {
   private isReturnCredentialScanned: boolean = false;
   private isLaptopStoredInCart: boolean = false;
   private hasReturnedCredentialFinal: boolean = false;
+  private isSimulationStarted: boolean = false;
 
   constructor(scene: THREE.Scene) {
     // 1. Configuración de Juan Pérez López (NPC 1 - Alumno Correcto)
@@ -59,7 +60,6 @@ export class NPCManager {
     scene.add(this.student.group);
 
     this.setupListeners();
-    this.startStudentFlow();
   }
 
   public setCredential(cred: Credential): void {
@@ -71,6 +71,13 @@ export class NPCManager {
   }
 
   private setupListeners(): void {
+    events.on('SIMULATION_STARTED', () => {
+      if (!this.isSimulationStarted) {
+        this.isSimulationStarted = true;
+        this.startStudentFlow();
+      }
+    });
+
     // Escaneo de credencial
     events.on('CREDENTIAL_SCANNED', () => {
       this.isCredentialScanned = true;
@@ -230,7 +237,9 @@ export class NPCManager {
     if (this.credentialRef) {
       this.credentialRef.group.visible = false;
     }
-    this.startStudentFlow();
+    if (this.isSimulationStarted) {
+      this.startStudentFlow();
+    }
   }
 
   public update(delta: number, cameraPos: THREE.Vector3): void {

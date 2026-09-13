@@ -14,7 +14,7 @@
   <!-- HUD en Modo Escritorio -->
   <div id="hud-overlay">
     <!-- Retícula central interactiva -->
-    <div id="reticle"></div>
+    <div id="reticle" class="pre-start-hidden"></div>
 
     <!-- Banner contextual de acción -->
     <div id="action-prompt" class="hidden">
@@ -23,7 +23,7 @@
     </div>
 
     <!-- Panel de estado e información -->
-    <div id="status-panel">
+    <div id="status-panel" class="pre-start-hidden">
       <div class="panel-header">
         <div class="status-indicator"></div>
         <span class="status-title">PC PUMA XR</span>
@@ -60,8 +60,8 @@
     <div id="floating-scores-container"></div>
 
     <!-- Instrucciones de control de escritorio -->
-    <div id="controls-guide">
-      <p><strong>[WASD]</strong> Moverse &nbsp;|&nbsp; <strong>[Mouse]</strong> Mirar &nbsp;|&nbsp; <strong>[E]</strong> Tomar/Soltar &nbsp;|&nbsp; <strong>[F]</strong> Guardar en Carro / Lector NFC</p>
+    <div id="controls-guide" class="pre-start-hidden">
+      <p><strong>[WASD]</strong> Moverse &nbsp;|&nbsp; <strong>[Mouse]</strong> Mirar &nbsp;|&nbsp; <strong>[E]</strong> Tomar/Soltar &nbsp;|&nbsp; <strong>[Q/R]</strong> Rotar &nbsp;|&nbsp; <strong>[X/Y / Rueda]</strong> Zoom &nbsp;|&nbsp; <strong>[F]</strong> Carro / NFC</p>
     </div>
 
     <!-- Pantalla de Inicio y Menú Principal -->
@@ -117,6 +117,8 @@
                   <li><strong>Grip o Trigger:</strong> Apretar para agarrar credencial o laptop; soltar para depositar en mesa o acoplar al lector NFC/carro.</li>
                   <li><strong>Botón B (Mando Der.):</strong> Rotar objeto sostenido en sentido horario (+Y).</li>
                   <li><strong>Botón A (Mando Der.):</strong> Rotar objeto sostenido en sentido inverso (-Y).</li>
+                  <li><strong>Botón X (Mando Izq.):</strong> Acercar objeto hacia ti (zoom in).</li>
+                  <li><strong>Botón Y (Mando Izq.):</strong> Alejar objeto hacia el frente (zoom out).</li>
                   <li><strong>Stick Izquierdo:</strong> Desplazarse suavemente tras el mostrador.</li>
                   <li><strong>Stick Derecho:</strong> Giro de cámara o rotación analógica.</li>
                   <li><strong>Hand Tracking:</strong> Pellizco (Pinch) para tomar y soltar.</li>
@@ -135,6 +137,7 @@
                   <li><strong>Clic Izquierdo o [E]:</strong> Tomar o soltar equipos e interactuar con la pantalla.</li>
                   <li><strong>[F]:</strong> Acción rápida inteligente (Guardar en Carro 01 / Acoplar a lector NFC).</li>
                   <li><strong>[Q] y [R]:</strong> Rotar objeto sostenido para examinar frente y reverso.</li>
+                  <li><strong>[X], [Y] o Rueda del Mouse:</strong> Acercar y alejar objeto en manos (zoom).</li>
                   <li><strong>ESC:</strong> Liberar cursor del ratón.</li>
                 </ul>
               </div>

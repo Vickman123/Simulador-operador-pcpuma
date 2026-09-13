@@ -1006,3 +1006,41 @@ body, html {
 .btn-modal-secondary:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+
+/* Ocultamiento de interfaz previo a iniciar la simulación (Ventana de inicio limpia) */
+.pre-start-hidden {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+.panel-fade-in {
+  animation: panelFadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.banner-fade-in {
+  animation: bannerFadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes panelFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bannerFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

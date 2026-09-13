@@ -10,9 +10,11 @@ export class ChecklistUI {
   constructor() {
     this.container = document.createElement('div');
     this.container.id = 'checklist-panel';
+    this.container.classList.add('pre-start-hidden');
 
     this.banner = document.createElement('div');
     this.banner.id = 'tutorial-banner';
+    this.banner.classList.add('pre-start-hidden');
 
     document.body.appendChild(this.container);
     document.body.appendChild(this.banner);
@@ -23,6 +25,12 @@ export class ChecklistUI {
   }
 
   private setupEventListeners(): void {
+    events.on('SIMULATION_STARTED', () => {
+      this.container.classList.remove('pre-start-hidden');
+      this.banner.classList.remove('pre-start-hidden');
+      this.container.classList.add('panel-fade-in');
+      this.banner.classList.add('banner-fade-in');
+    });
     events.on('TUTORIAL_TASK_COMPLETED', () => {
       this.render();
       this.updateBanner();

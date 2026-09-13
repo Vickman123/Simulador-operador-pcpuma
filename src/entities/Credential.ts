@@ -226,6 +226,14 @@ export class Credential implements IGrabbable {
     this.group.rotation.y += deltaAngle;
   }
 
+  public adjustDistance(deltaDistance: number): void {
+    if (!this._isGrabbed) return;
+    const isCamera = this.group.parent instanceof THREE.Camera;
+    const minZ = isCamera ? -0.80 : -0.45;
+    const maxZ = isCamera ? -0.16 : -0.04;
+    this.group.position.z = THREE.MathUtils.clamp(this.group.position.z + deltaDistance, minZ, maxZ);
+  }
+
   public release(dropPosition?: THREE.Vector3, dropRotation?: THREE.Euler): void {
     if (!this._isGrabbed) return;
 

@@ -10,6 +10,7 @@ export interface IGrabbable {
   isGrabbed(): boolean;
   update(delta: number): void;
   rotateHeld?(deltaAngle: number): void;
+  adjustDistance?(deltaDistance: number): void;
 }
 
 export interface LaptopConfig {
@@ -250,6 +251,14 @@ export class Laptop implements IGrabbable {
   public rotateHeld(deltaAngle: number): void {
     if (!this._isGrabbed) return;
     this.group.rotation.y += deltaAngle;
+  }
+
+  public adjustDistance(deltaDistance: number): void {
+    if (!this._isGrabbed) return;
+    const isCamera = this.group.parent instanceof THREE.Camera;
+    const minZ = isCamera ? -0.85 : -0.55;
+    const maxZ = isCamera ? -0.22 : -0.08;
+    this.group.position.z = THREE.MathUtils.clamp(this.group.position.z + deltaDistance, minZ, maxZ);
   }
 
   public release(dropPosition?: THREE.Vector3, dropRotation?: THREE.Euler): void {

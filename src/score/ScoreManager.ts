@@ -25,7 +25,7 @@ export class ScoreManager {
 
   // Temporizador de turno
   public shiftTimeSeconds: number = 0;
-  public isShiftActive: boolean = true;
+  public isShiftActive: boolean = false;
 
   // Estadísticas operativas
   public completedLoans: number = 0;
@@ -48,6 +48,10 @@ export class ScoreManager {
   }
 
   private setupListeners(): void {
+    events.on("SIMULATION_STARTED", () => {
+      this.isShiftActive = true;
+    });
+
     // 1. Escaneo de credencial (+50 pts)
     events.on("CREDENTIAL_SCANNED", () => {
       this.addPoints("Escaneo conforme de credencial NFC", 50, true);

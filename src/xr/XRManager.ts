@@ -116,6 +116,9 @@ export class XRManager {
       this.isXRPresenting = true;
       console.log('[XRManager] WebXR Session activa en Meta Quest / Visor.');
       events.emit('XR_SESSION_STATE', true);
+      events.emit('SIMULATION_STARTED');
+      const blocker = document.getElementById('blocker');
+      if (blocker) blocker.style.display = 'none';
     });
 
     this.renderer.xr.addEventListener('sessionend', () => {

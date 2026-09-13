@@ -30,6 +30,17 @@ export class DesktopHUD {
   }
 
   private setupEventListeners(): void {
+    // 0. Inicio de simulación (revelar HUD tras dar clic en EMPEZAR)
+    const statusPanel = document.getElementById('status-panel');
+    const controlsGuide = document.getElementById('controls-guide');
+    const reticleEl = document.getElementById('reticle');
+
+    events.on('SIMULATION_STARTED', () => {
+      statusPanel?.classList.remove('pre-start-hidden');
+      controlsGuide?.classList.remove('pre-start-hidden');
+      reticleEl?.classList.remove('pre-start-hidden');
+    });
+
     // 1. Hover sobre objeto interactuable
     events.on('OBJECT_HOVER_START', (data: { id: string; prompt: string; key?: string }) => {
       if (this.reticle) {
@@ -63,9 +74,9 @@ export class DesktopHUD {
       if (this.actionPrompt && this.promptText) {
         const badge = this.actionPrompt.querySelector('.key-badge') as HTMLElement;
         if (badge) {
-          badge.textContent = 'Q / R';
+          badge.textContent = 'Q/R • X/Y';
         }
-        this.promptText.textContent = 'Rotar  |  [E] Soltar en Mostrador  |  [F] Acción Rápida';
+        this.promptText.textContent = 'Rotar / Zoom  |  [E] Soltar en Mostrador  |  [F] Acción Rápida';
         this.actionPrompt.classList.remove('hidden');
       }
       if (this.statusHolding) {

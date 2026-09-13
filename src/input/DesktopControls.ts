@@ -15,6 +15,9 @@ export class DesktopControls {
   private moveRight: boolean = false;
   private rotateLeft: boolean = false;
   private rotateRight: boolean = false;
+  private distanceIn: boolean = false;
+  private distanceOut: boolean = false;
+  private hasGameStarted: boolean = false;
 
   private velocity = new THREE.Vector3();
   private direction = new THREE.Vector3();
@@ -45,11 +48,19 @@ export class DesktopControls {
   private setupPointerLock(): void {
     if (this.startBtn && this.blocker) {
       this.startBtn.addEventListener('click', () => {
+        if (!this.hasGameStarted) {
+          this.hasGameStarted = true;
+          events.emit('SIMULATION_STARTED');
+        }
         this.controls.lock();
       });
 
       this.controls.addEventListener('lock', () => {
         this.isLocked = true;
+        if (!this.hasGameStarted) {
+          this.hasGameStarted = true;
+          events.emit('SIMULATION_STARTED');
+        }
         if (this.blocker) {
           this.blocker.style.opacity = '0';
           setTimeout(() => {
@@ -106,6 +117,13 @@ export class DesktopControls {
         case 'KeyR':
           this.rotateRight = true;
           break;
+        case 'KeyX':
+          this.distanceIn = true; // Acercar objeto
+          break;
+        case 'KeyY':
+        case 'KeyZ':
+          this.distanceOut = true; // Alejar objeto
+          break;
       }
     };
 
@@ -133,6 +151,13 @@ export class DesktopControls {
         case 'KeyR':
           this.rotateRight = false;
           break;
+        case 'KeyX':
+          this.distanceIn = false;
+          break;
+        case 'KeyY':
+        case 'KeyZ':
+          this.distanceOut = false;
+          break;
       }
     };
 
@@ -143,9 +168,18 @@ export class DesktopControls {
       }
     };
 
+    const onWheel = (event: WheelEvent) => {
+      if (this.isLocked) {
+        // Rueda arriba: acercar (+delta); Rueda abajo: alejar (-delta)
+        const deltaDist = event.deltaY < 0 ? 0.045 : -0.045;
+        events.emit('INTERACTION_ADJUST_DISTANCE', deltaDist);
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('wheel', onWheel, { passive: true });
   }
 
   public update(delta: number): void {
@@ -182,6 +216,14 @@ export class DesktopControls {
     }
     if (this.rotateRight) {
       events.emit('INTERACTION_ROTATE_HELD', 2.5 * delta);
+    }
+
+    // Ajuste de distancia de objeto en manos con teclas X y Y (o Z)
+    if (this.distanceIn) {
+      events.emit('INTERACTION_ADJUST_DISTANCE', 0.6 * delta);
+    }
+    if (this.distanceOut) {
+      events.emit('INTERACTION_ADJUST_DISTANCE', -0.6 * delta);
     }
 
     // Mantener altura fija de pie (1.65m)
