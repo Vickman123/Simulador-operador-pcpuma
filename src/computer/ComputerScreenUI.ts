@@ -61,7 +61,11 @@ export class ComputerScreenUI {
     // Escuchar lectura de credencial NFC
     events.on('CREDENTIAL_SCANNED', () => {
       this.isCredentialScanned = true;
-      this.setTab('USUARIO');
+      if (this.currentTab === 'INICIO' || this.currentTab === 'USUARIO') {
+        this.setTab('USUARIO');
+      } else {
+        this.render();
+      }
     });
 
     // Escuchar actualizaciones de puntuación y racha

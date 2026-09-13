@@ -107,6 +107,7 @@ export class App {
 
     // 16. Bucle de Actualización (Tick)
     this.engine.addUpdatable((delta) => {
+      this.xrManager.updateLocomotion(delta);
       this.desktopControls.update(delta);
       this.interactionSystem.update(delta);
       this.cart.update(delta);

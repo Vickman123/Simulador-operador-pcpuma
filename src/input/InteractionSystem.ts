@@ -31,6 +31,9 @@ export class InteractionSystem {
   private isHoveringCart: boolean = false;
   private hoveredBayIndex: number | null = null;
 
+  private nfcSnapCooldown: number = 0;
+  private heldHolder: THREE.Object3D | null = null;
+
   constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene, xrManager: XRManager) {
     this.camera = camera;
     this.scene = scene;
@@ -99,9 +102,13 @@ export class InteractionSystem {
       }
     });
 
-    // 5. Disparo en VR con mandos
+    // 5. Disparo y Agarre en VR con mandos (Hold-to-Grab)
     events.on('VR_TRIGGER_DOWN', (data: { controllerIndex: number; controller: THREE.Object3D }) => {
       this.handleAction(data.controller);
+    });
+
+    events.on('VR_TRIGGER_UP', (data: { controllerIndex: number; controller: THREE.Object3D }) => {
+      this.handleVRRelease(data.controller);
     });
 
     events.on('VR_GRIP_DOWN', (data: { controllerIndex: number; controller: THREE.Object3D }) => {
@@ -112,9 +119,24 @@ export class InteractionSystem {
       }
     });
 
+    events.on('VR_GRIP_UP', (data: { controllerIndex: number; controller: THREE.Object3D }) => {
+      this.handleVRRelease(data.controller);
+    });
+
     // 6. Disparo con Hand Tracking
     events.on('VR_HAND_PINCH_START', (data: { handIndex: number; hand: THREE.Object3D }) => {
       this.handleAction(data.hand);
+    });
+
+    events.on('VR_HAND_PINCH_END', (data: { handIndex: number; hand: THREE.Object3D }) => {
+      this.handleVRRelease(data.hand);
+    });
+
+    // 7. Rotación de objeto sostenido desde teclado (Q/R)
+    events.on('INTERACTION_ROTATE_HELD', (deltaAngle: number) => {
+      if (this.heldGrabbable) {
+        this.heldGrabbable.rotateHeld?.(deltaAngle);
+      }
     });
   }
 
@@ -300,6 +322,8 @@ export class InteractionSystem {
 
   private grabObject(target: IGrabbable, holder: THREE.Object3D): void {
     this.heldGrabbable = target;
+    this.heldHolder = holder;
+    this.nfcSnapCooldown = 1.0; // Enfriamiento para permitir alejar la credencial sin auto-snap
     target.grab(holder);
 
     if (target instanceof Laptop) {
@@ -329,6 +353,7 @@ export class InteractionSystem {
 
     const cred = this.heldGrabbable;
     this.heldGrabbable = null;
+    this.heldHolder = null;
 
     // Preservar transformaciones de mundo
     this.scene.attach(cred.group);
@@ -344,11 +369,54 @@ export class InteractionSystem {
 
   private isNearNFCScanner(): boolean {
     if (!this.nfcScanner || !this.credential) return false;
+    if (this.nfcSnapCooldown > 0) return false;
+
     const credPos = new THREE.Vector3();
     const scanPos = new THREE.Vector3();
     this.credential.group.getWorldPosition(credPos);
     this.nfcScanner.group.getWorldPosition(scanPos);
-    return credPos.distanceTo(scanPos) < 0.45 || this.camera.position.distanceTo(scanPos) < 1.8;
+    return credPos.distanceTo(scanPos) < 0.20;
+  }
+
+  private handleVRRelease(controller: THREE.Object3D): void {
+    if (!this.heldGrabbable) return;
+
+    // Verificar que el evento de liberación pertenezca al mando que sostiene
+    if (this.heldHolder && this.heldHolder !== controller) {
+      const isSameRoot = this.heldHolder.parent === controller.parent;
+      if (!isSameRoot) return;
+    }
+
+    const obj = this.heldGrabbable;
+
+    // 1. Si es Credencial y está cerca de la diana NFC (< 20 cm) -> Magnet snap
+    if (obj instanceof Credential) {
+      if (this.nfcScanner && this.nfcSnapCooldown <= 0) {
+        const scannerPos = new THREE.Vector3();
+        this.nfcScanner.group.getWorldPosition(scannerPos);
+        const cardPos = new THREE.Vector3();
+        obj.group.getWorldPosition(cardPos);
+
+        if (cardPos.distanceTo(scannerPos) < 0.20) {
+          this.placeCredentialOnNFC();
+          return;
+        }
+      }
+      this.releaseObject();
+      return;
+    }
+
+    // 2. Si es Laptop y está cerca/mirando al Carro 01 -> Docking
+    if (obj instanceof Laptop) {
+      if (this.cart && (this.isHoveringCart || this.isNearCart())) {
+        this.dockLaptopToCart(this.hoveredBayIndex || undefined);
+        return;
+      }
+      this.releaseObject();
+      return;
+    }
+
+    this.releaseObject();
   }
 
   private releaseObject(): void {
@@ -356,6 +424,7 @@ export class InteractionSystem {
 
     const objectToRelease = this.heldGrabbable;
     this.heldGrabbable = null;
+    this.heldHolder = null;
 
     const worldPos = new THREE.Vector3();
     const worldQuat = new THREE.Quaternion();
@@ -376,7 +445,9 @@ export class InteractionSystem {
       }
 
       // 2. Colocar sobre el mostrador en la ZONA DE ENTREGA Y RECEPCIÓN para entrega a Juan o inspección
-      const targetPos = new THREE.Vector3(0.65, 1.101, 0.05);
+      const restX = THREE.MathUtils.clamp(worldPos.x, -0.4, 0.9);
+      const restZ = THREE.MathUtils.clamp(worldPos.z, -0.4, 0.4);
+      const targetPos = new THREE.Vector3(restX, 1.101, restZ);
       objectToRelease.release(targetPos, new THREE.Euler(0, -Math.PI / 8, 0));
       inventory.updateStatus(objectToRelease.id, 'EN_MOSTRADOR');
 
@@ -385,23 +456,21 @@ export class InteractionSystem {
         name: objectToRelease.tag
       });
     } else if (objectToRelease instanceof Credential) {
-      // Si se suelta cerca del lector NFC, reposar sobre la diana (Y = 1.127m)
-      if (this.nfcScanner) {
+      // Si se suelta cerca del lector NFC (< 20 cm) y el cooldown expiró -> Imán NFC
+      if (this.nfcScanner && this.nfcSnapCooldown <= 0) {
         const scannerPos = new THREE.Vector3();
         this.nfcScanner.group.getWorldPosition(scannerPos);
-        if (worldPos.distanceTo(scannerPos) < 0.35) {
+        if (worldPos.distanceTo(scannerPos) < 0.20) {
           this.nfcScanner.snapCredential(objectToRelease);
           events.emit('OBJECT_RELEASED', { id: objectToRelease.id, name: 'Credencial UNAM' });
           return;
         }
       }
 
-      // De lo contrario sobre el mostrador (Superficie a 1.100m -> Credencial a 1.102m)
-      if (worldPos.y > 0.85 && Math.abs(worldPos.z) < 1.0) {
-        objectToRelease.release(new THREE.Vector3(worldPos.x, 1.102, worldPos.z));
-      } else {
-        objectToRelease.release();
-      }
+      // De lo contrario sobre el mostrador en la ubicación del operador
+      const restX = THREE.MathUtils.clamp(worldPos.x, -0.4, 0.9);
+      const restZ = THREE.MathUtils.clamp(worldPos.z, -0.4, 0.4);
+      objectToRelease.release(new THREE.Vector3(restX, 1.102, restZ));
 
       events.emit('OBJECT_RELEASED', {
         id: objectToRelease.id,
@@ -414,6 +483,11 @@ export class InteractionSystem {
   }
 
   public update(delta: number): void {
+    // 0. Reducir cooldown de proximidad NFC
+    if (this.nfcSnapCooldown > 0) {
+      this.nfcSnapCooldown -= delta;
+    }
+
     // 1. Proximidad NFC continua
     if (this.nfcScanner && this.credential) {
       const credWorldPos = new THREE.Vector3();
@@ -438,6 +512,23 @@ export class InteractionSystem {
     if (this.heldGrabbable) {
       this.heldGrabbable.update(delta);
 
+      // Rotación con mando derecho en VR (Botón B horario, Botón A anti-horario, o stick)
+      const gamepads = this.xrManager.getControllerGamepads();
+      if (gamepads.right && gamepads.right.buttons) {
+        const btnA = gamepads.right.buttons[4]?.pressed; // Botón A (inferior)
+        const btnB = gamepads.right.buttons[5]?.pressed; // Botón B (superior)
+        const stickX = Math.abs(gamepads.right.axes?.[2] || 0) > 0.25 ? gamepads.right.axes[2] : 0;
+        const rotSpeed = 2.5 * delta;
+
+        if (btnB) {
+          this.heldGrabbable.rotateHeld?.(rotSpeed);
+        } else if (btnA) {
+          this.heldGrabbable.rotateHeld?.(-rotSpeed);
+        } else if (stickX !== 0) {
+          this.heldGrabbable.rotateHeld?.(stickX * rotSpeed);
+        }
+      }
+
       // A) Sosteniendo credencial:
       if (this.heldGrabbable instanceof Credential && this.nfcScanner) {
         let hitNFC = false;
@@ -455,13 +546,13 @@ export class InteractionSystem {
         if (hitNFC || this.isNearNFCScanner()) {
           events.emit('OBJECT_HOVER_START', {
             id: 'nfc_placement',
-            prompt: '[F] Colocar en Lector NFC  |  [E] Soltar en Mostrador',
+            prompt: '[Q / R] Rotar  |  [F] Colocar en Lector NFC  |  [E] Soltar en Mostrador',
             key: 'F'
           });
         } else {
           events.emit('OBJECT_HOVER_START', {
             id: 'holding_card',
-            prompt: '[E] Soltar en Mostrador  |  [F] Colocar en Lector NFC',
+            prompt: '[Q / R] Rotar  |  [E] Soltar en Mostrador  |  [F] Colocar en Lector NFC',
             key: 'E'
           });
         }
@@ -500,13 +591,13 @@ export class InteractionSystem {
           const bayLabel = targetedBay ? `Bahía 0${targetedBay}` : 'Bahía del Carro 01';
           events.emit('OBJECT_HOVER_START', {
             id: 'dock_laptop',
-            prompt: `[F] o [Click] Guardar en ${bayLabel}  |  [E] Entregar en Mostrador`,
+            prompt: `[Q / R] Rotar  |  [F] o [Click] Guardar en ${bayLabel}  |  [E] Entregar`,
             key: 'F'
           });
         } else {
           events.emit('OBJECT_HOVER_START', {
             id: 'holding_laptop',
-            prompt: '[E] o [Click] Entregar en Mostrador  |  [F] Guardar en Carro 01',
+            prompt: '[Q / R] Rotar  |  [E] o [Click] Entregar en Mostrador  |  [F] Guardar en Carro',
             key: 'E'
           });
         }

@@ -66,7 +66,9 @@ export class LoanManager {
   private setupListeners(): void {
     // 1. Escaneo NFC de credencial
     events.on('CREDENTIAL_SCANNED', () => {
-      this.setState('CREDENTIAL_SCANNED');
+      if (this.currentState === 'WAITING_STUDENT' || this.currentState === 'STUDENT_AT_COUNTER') {
+        this.setState('CREDENTIAL_SCANNED');
+      }
     });
 
     // 2. Validación de usuario en pantalla

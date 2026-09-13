@@ -141,4 +141,64 @@ export class XRManager {
 
     return rays;
   }
+
+  public getControllerGamepads(): {
+    right?: Gamepad;
+    left?: Gamepad;
+  } {
+    const session = this.renderer.xr.getSession();
+    if (!session) return {};
+
+    const result: { right?: Gamepad; left?: Gamepad } = {};
+    for (const source of session.inputSources) {
+      if (source.gamepad) {
+        if (source.handedness === 'right') {
+          result.right = source.gamepad;
+        } else if (source.handedness === 'left') {
+          result.left = source.gamepad;
+        }
+      }
+    }
+    return result;
+  }
+
+  public updateLocomotion(delta: number): void {
+    if (!this.isXRPresenting) return;
+
+    const { left, right } = this.getControllerGamepads();
+
+    // Desplazamiento suave con el thumbstick del mando izquierdo
+    if (left && left.axes && left.axes.length >= 4) {
+      const stickX = left.axes[2];
+      const stickZ = left.axes[3];
+      const deadzone = 0.15;
+
+      if (Math.abs(stickX) > deadzone || Math.abs(stickZ) > deadzone) {
+        const speed = 2.0 * delta;
+        const cameraDirection = new THREE.Vector3();
+        this.renderer.xr.getCamera().getWorldDirection(cameraDirection);
+        cameraDirection.y = 0;
+        cameraDirection.normalize();
+
+        const rightVec = new THREE.Vector3();
+        rightVec.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+
+        this.xrRig.position.addScaledVector(cameraDirection, -stickZ * speed);
+        this.xrRig.position.addScaledVector(rightVec, stickX * speed);
+
+        // Limitar dentro del área de servicio del operador (detrás del mostrador)
+        this.xrRig.position.x = THREE.MathUtils.clamp(this.xrRig.position.x, -2.4, 2.4);
+        this.xrRig.position.z = THREE.MathUtils.clamp(this.xrRig.position.z, -3.4, -0.6);
+      }
+    }
+
+    // Giro suave o snap con thumbstick del mando derecho
+    if (right && right.axes && right.axes.length >= 4) {
+      const turnX = right.axes[2];
+      const turnDeadzone = 0.35;
+      if (Math.abs(turnX) > turnDeadzone) {
+        this.xrRig.rotation.y -= turnX * 1.5 * delta;
+      }
+    }
+  }
 }

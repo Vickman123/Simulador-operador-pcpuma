@@ -210,8 +210,20 @@ export class Credential implements IGrabbable {
     this.cardMesh.rotation.x = 0;
 
     holder.add(this.group);
-    this.group.position.copy(this.holdOffset);
-    this.group.rotation.copy(this.holdRotation);
+    const isCamera = holder instanceof THREE.Camera;
+    if (isCamera) {
+      this.group.position.copy(this.holdOffset);
+      this.group.rotation.copy(this.holdRotation);
+    } else {
+      // Posición ergonómica natural en la mano del mando VR
+      this.group.position.set(0, 0.03, -0.12);
+      this.group.rotation.set(0.1, 0, 0);
+    }
+  }
+
+  public rotateHeld(deltaAngle: number): void {
+    if (!this._isGrabbed) return;
+    this.group.rotation.y += deltaAngle;
   }
 
   public release(dropPosition?: THREE.Vector3, dropRotation?: THREE.Euler): void {

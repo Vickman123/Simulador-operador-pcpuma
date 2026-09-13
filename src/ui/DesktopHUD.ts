@@ -60,7 +60,11 @@ export class DesktopHUD {
         this.reticle.classList.add('holding');
       }
       if (this.actionPrompt && this.promptText) {
-        this.promptText.textContent = 'Soltar Laptop';
+        const badge = this.actionPrompt.querySelector('.key-badge') as HTMLElement;
+        if (badge) {
+          badge.textContent = 'Q / R';
+        }
+        this.promptText.textContent = 'Rotar  |  [E] Soltar en Mostrador  |  [F] Acción Rápida';
         this.actionPrompt.classList.remove('hidden');
       }
       if (this.statusHolding) {

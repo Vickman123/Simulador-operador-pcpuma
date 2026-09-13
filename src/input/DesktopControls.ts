@@ -13,6 +13,8 @@ export class DesktopControls {
   private moveBackward: boolean = false;
   private moveLeft: boolean = false;
   private moveRight: boolean = false;
+  private rotateLeft: boolean = false;
+  private rotateRight: boolean = false;
 
   private velocity = new THREE.Vector3();
   private direction = new THREE.Vector3();
@@ -98,6 +100,12 @@ export class DesktopControls {
           events.emit('INTERACTION_SMART_ACTION');
           events.emit('INTERACTION_PLACE_NFC');
           break;
+        case 'KeyQ':
+          this.rotateLeft = true;
+          break;
+        case 'KeyR':
+          this.rotateRight = true;
+          break;
       }
     };
 
@@ -118,6 +126,12 @@ export class DesktopControls {
         case 'KeyD':
         case 'ArrowRight':
           this.moveRight = false;
+          break;
+        case 'KeyQ':
+          this.rotateLeft = false;
+          break;
+        case 'KeyR':
+          this.rotateRight = false;
           break;
       }
     };
@@ -161,6 +175,14 @@ export class DesktopControls {
 
     this.controls.moveRight(-this.velocity.x * delta);
     this.controls.moveForward(-this.velocity.z * delta);
+
+    // Rotación de objeto en manos con teclas Q y R
+    if (this.rotateLeft) {
+      events.emit('INTERACTION_ROTATE_HELD', -2.5 * delta);
+    }
+    if (this.rotateRight) {
+      events.emit('INTERACTION_ROTATE_HELD', 2.5 * delta);
+    }
 
     // Mantener altura fija de pie (1.65m)
     this.camera.position.y = 1.65;

@@ -16,6 +16,7 @@ export class NFCScanner {
   private isScanning: boolean = false;
   private scanCooldown: number = 0;
   private lastScannedId: string | null = null;
+  private hasScannedCurrentPlacement: boolean = false;
 
   constructor() {
     this.group = new THREE.Group();
@@ -121,17 +122,21 @@ export class NFCScanner {
   }
 
   public checkProximity(credentialPos: THREE.Vector3, credentialId: string): boolean {
-    if (this.scanCooldown > 0) return false;
-
     const scannerWorldPos = new THREE.Vector3();
     this.group.getWorldPosition(scannerWorldPos);
 
     const dist = scannerWorldPos.distanceTo(credentialPos);
 
-    // Radio de detección generoso: 24 cm
-    if (dist <= 0.24) {
-      this.triggerScan(credentialId);
-      return true;
+    // Detección cuando la tarjeta está sobre el sensor (<= 20 cm)
+    if (dist <= 0.20) {
+      if (!this.hasScannedCurrentPlacement && this.scanCooldown <= 0) {
+        this.hasScannedCurrentPlacement = true;
+        this.triggerScan(credentialId);
+        return true;
+      }
+    } else if (dist > 0.32) {
+      // Cuando la credencial se aleja físicamente, habilitar el siguiente escaneo
+      this.hasScannedCurrentPlacement = false;
     }
 
     return false;
@@ -146,6 +151,7 @@ export class NFCScanner {
     const dropRot = new THREE.Euler(0, 0, 0);
     credential.release(dropPos, dropRot);
 
+    this.hasScannedCurrentPlacement = true;
     this.triggerScan(credential.id);
   }
 

@@ -9,6 +9,7 @@ export interface IGrabbable {
   release(dropPosition?: THREE.Vector3, dropRotation?: THREE.Euler): void;
   isGrabbed(): boolean;
   update(delta: number): void;
+  rotateHeld?(deltaAngle: number): void;
 }
 
 export interface LaptopConfig {
@@ -235,8 +236,20 @@ export class Laptop implements IGrabbable {
     this.setOpen(true);
 
     holder.add(this.group);
-    this.group.position.copy(this.holdOffset);
-    this.group.rotation.copy(this.holdRotation);
+    const isCamera = holder instanceof THREE.Camera;
+    if (isCamera) {
+      this.group.position.copy(this.holdOffset);
+      this.group.rotation.copy(this.holdRotation);
+    } else {
+      // Posición ergonómica natural sobre el mando VR
+      this.group.position.set(0, 0.02, -0.22);
+      this.group.rotation.set(0.1, 0, 0);
+    }
+  }
+
+  public rotateHeld(deltaAngle: number): void {
+    if (!this._isGrabbed) return;
+    this.group.rotation.y += deltaAngle;
   }
 
   public release(dropPosition?: THREE.Vector3, dropRotation?: THREE.Euler): void {
