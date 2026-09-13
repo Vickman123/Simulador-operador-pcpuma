@@ -30,6 +30,7 @@ export class InteractionSystem {
   private isHoveringNFCPlacement: boolean = false;
   private isHoveringCart: boolean = false;
   private hoveredBayIndex: number | null = null;
+  private isStudentWaitingCredential: boolean = false;
 
   private nfcSnapCooldown: number = 0;
   private heldHolder: THREE.Object3D | null = null;
@@ -75,14 +76,28 @@ export class InteractionSystem {
       this.handleAction(this.camera);
     });
 
-    // 2. Acción inteligente dedicada (Tecla F): Guardar en Carro / Tomar equipo / Colocar NFC
+    // 2. Acción inteligente dedicada (Tecla F): Guardar en Carro / Tomar equipo / Colocar NFC / Entregar Credencial
     events.on('INTERACTION_SMART_ACTION', () => {
       this.handleSmartAction(this.camera);
     });
 
+    // Escucha de estado de espera de credencial por el alumno
+    events.on('CREDENTIAL_TRAY_HIGHLIGHT', (active: boolean) => {
+      this.isStudentWaitingCredential = active;
+    });
+    events.on('STUDENT_RECEIVED_CREDENTIAL', () => {
+      this.isStudentWaitingCredential = false;
+    });
+    events.on('STUDENT_RECEIVED_CREDENTIAL_RETURN', () => {
+      this.isStudentWaitingCredential = false;
+    });
+    events.on('STUDENT_RECEIVED_CREDENTIAL_REJECTED', () => {
+      this.isStudentWaitingCredential = false;
+    });
+
     // Retrocompatibilidad con evento NFC
     events.on('INTERACTION_PLACE_NFC', () => {
-      if (this.heldGrabbable instanceof Credential) {
+      if (this.heldGrabbable instanceof Credential && !this.isStudentWaitingCredential) {
         this.placeCredentialOnNFC();
       }
     });
@@ -198,9 +213,13 @@ export class InteractionSystem {
   }
 
   private handleSmartAction(holder: THREE.Object3D): void {
-    // A) Sosteniendo credencial -> Colocar en Lector NFC
+    // A) Sosteniendo credencial:
     if (this.heldGrabbable instanceof Credential) {
-      this.placeCredentialOnNFC();
+      if (this.isStudentWaitingCredential || this.isNearStudent()) {
+        this.deliverCredentialToTray();
+      } else {
+        this.placeCredentialOnNFC();
+      }
       return;
     }
 
@@ -374,6 +393,34 @@ export class InteractionSystem {
     });
   }
 
+  public deliverCredentialToTray(): void {
+    if (!(this.heldGrabbable instanceof Credential)) return;
+
+    const cred = this.heldGrabbable;
+    this.heldGrabbable = null;
+    this.heldHolder = null;
+
+    this.scene.attach(cred.group);
+    // Acoplar al centro de la nueva Bandeja de Entrega frente al alumno
+    const targetPos = new THREE.Vector3(0.38, 1.102, 0.12);
+    const targetRot = new THREE.Euler(0, -Math.PI / 10, 0);
+    cred.release(targetPos, targetRot);
+
+    events.emit('OBJECT_RELEASED', {
+      id: cred.id,
+      name: 'Credencial UNAM'
+    });
+  }
+
+  private isNearStudent(): boolean {
+    const credPos = new THREE.Vector3();
+    if (this.credential) {
+      this.credential.group.getWorldPosition(credPos);
+    }
+    const studentPos = new THREE.Vector3(0.65, 1.1, 0.55);
+    return credPos.distanceTo(studentPos) < 1.35;
+  }
+
   private isNearNFCScanner(): boolean {
     if (!this.nfcScanner || !this.credential) return false;
     if (this.nfcSnapCooldown > 0) return false;
@@ -463,18 +510,29 @@ export class InteractionSystem {
         name: objectToRelease.tag
       });
     } else if (objectToRelease instanceof Credential) {
-      // Si se suelta cerca del lector NFC (< 20 cm) y el cooldown expiró -> Imán NFC
+      // 1. Si se suelta cerca del lector NFC (< 22 cm) y el cooldown expiró -> Imán NFC
       if (this.nfcScanner && this.nfcSnapCooldown <= 0) {
         const scannerPos = new THREE.Vector3();
         this.nfcScanner.group.getWorldPosition(scannerPos);
-        if (worldPos.distanceTo(scannerPos) < 0.20) {
+        if (worldPos.distanceTo(scannerPos) < 0.22) {
           this.nfcScanner.snapCredential(objectToRelease);
           events.emit('OBJECT_RELEASED', { id: objectToRelease.id, name: 'Credencial UNAM' });
           return;
         }
       }
 
-      // De lo contrario sobre el mostrador en la ubicación del operador
+      // 2. Si se suelta en la mitad derecha del mostrador o cerca de la bandeja -> Imán automático a la Bandeja de Entrega
+      const trayPos = new THREE.Vector3(0.38, 1.08, 0.12);
+      const distToTray = worldPos.distanceTo(trayPos);
+      const isTowardStudent = worldPos.x > 0.10 && worldPos.z > -0.35 && worldPos.z < 0.50;
+
+      if (distToTray < 0.50 || isTowardStudent) {
+        objectToRelease.release(new THREE.Vector3(0.38, 1.102, 0.12), new THREE.Euler(0, -Math.PI / 10, 0));
+        events.emit('OBJECT_RELEASED', { id: objectToRelease.id, name: 'Credencial UNAM' });
+        return;
+      }
+
+      // 3. De lo contrario sobre el mostrador en la ubicación del operador
       const restX = THREE.MathUtils.clamp(worldPos.x, -0.4, 0.9);
       const restZ = THREE.MathUtils.clamp(worldPos.z, -0.4, 0.4);
       objectToRelease.release(new THREE.Vector3(restX, 1.102, restZ));
@@ -563,7 +621,13 @@ export class InteractionSystem {
         }
 
         this.isHoveringNFCPlacement = hitNFC;
-        if (hitNFC || this.isNearNFCScanner()) {
+        if (this.isStudentWaitingCredential) {
+          events.emit('OBJECT_HOVER_START', {
+            id: 'deliver_student_card',
+            prompt: '[Q/R] Rotar | [X/Y] Zoom | [F] Entregar al Alumno | [E] Dejar en Bandeja',
+            key: 'F'
+          });
+        } else if (hitNFC || this.isNearNFCScanner()) {
           events.emit('OBJECT_HOVER_START', {
             id: 'nfc_placement',
             prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [F] Colocar en NFC | [E] Soltar',
@@ -572,7 +636,7 @@ export class InteractionSystem {
         } else {
           events.emit('OBJECT_HOVER_START', {
             id: 'holding_card',
-            prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [E] Soltar | [F] Lector NFC',
+            prompt: '[Q/R] Rotar | [X/Y o Rueda] Zoom | [E] Soltar en Mostrador | [F] Lector NFC',
             key: 'E'
           });
         }

@@ -1,8 +1,11 @@
 import * as THREE from 'three';
+import { events } from '../core/EventBus';
 
 export class Counter {
   public readonly group: THREE.Group;
   public readonly deliverySurfaceY: number = 1.05;
+  public readonly credentialTrayWorldPos = new THREE.Vector3(0.38, 1.08, 0.12);
+  private trayBorderMat!: THREE.MeshStandardMaterial;
 
   constructor() {
     this.group = new THREE.Group();
@@ -10,7 +13,12 @@ export class Counter {
 
     this.createMainCounter();
     this.createDeliveryZone();
+    this.createCredentialTray();
     this.createSideCounter();
+
+    events.on('CREDENTIAL_TRAY_HIGHLIGHT', (active: boolean) => {
+      this.setTrayHighlight(active);
+    });
   }
 
   private createMainCounter(): void {
@@ -116,6 +124,78 @@ export class Counter {
     pad.position.set(0.65, 1.077, 0.05);
     pad.receiveShadow = true;
     this.group.add(pad);
+  }
+
+  private createCredentialTray(): void {
+    // Bandeja de entrega de credencial frente al estudiante
+    const trayW = 0.28;
+    const trayH = 0.20;
+    const trayCanvas = document.createElement('canvas');
+    trayCanvas.width = 512;
+    trayCanvas.height = 384;
+    const ctx = trayCanvas.getContext('2d')!;
+
+    // Fondo azul UNAM elegante
+    ctx.fillStyle = '#001E33';
+    ctx.fillRect(0, 0, 512, 384);
+
+    // Borde dorado
+    ctx.strokeStyle = '#D59F0F';
+    ctx.lineWidth = 12;
+    ctx.strokeRect(8, 8, 496, 368);
+
+    // Icono y texto
+    ctx.fillStyle = '#D59F0F';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🪪 BANDEJA DE ENTREGA', 256, 115);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText('DEVOLVER CREDENCIAL', 256, 195);
+
+    ctx.fillStyle = '#10B981';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('▼ ENTREGAR / SOLTAR AQUÍ ▼', 256, 280);
+
+    const trayTex = new THREE.CanvasTexture(trayCanvas);
+    const trayMat = new THREE.MeshStandardMaterial({
+      map: trayTex,
+      roughness: 0.35,
+      metalness: 0.2
+    });
+
+    const trayMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(trayW, trayH),
+      trayMat
+    );
+    trayMesh.rotation.x = -Math.PI / 2;
+    trayMesh.position.set(0.38, 1.078, 0.12);
+    trayMesh.receiveShadow = true;
+    this.group.add(trayMesh);
+
+    // Borde luminoso de acrílico/LED que brilla cuando el alumno espera credencial
+    this.trayBorderMat = new THREE.MeshStandardMaterial({
+      color: 0xD59F0F,
+      emissive: 0xD59F0F,
+      emissiveIntensity: 0.35,
+      roughness: 0.3,
+      metalness: 0.6
+    });
+    const trayBorder = new THREE.Mesh(
+      new THREE.BoxGeometry(trayW + 0.02, 0.012, trayH + 0.02),
+      this.trayBorderMat
+    );
+    trayBorder.position.set(0.38, 1.074, 0.12);
+    trayBorder.receiveShadow = true;
+    this.group.add(trayBorder);
+  }
+
+  public setTrayHighlight(active: boolean): void {
+    if (this.trayBorderMat) {
+      this.trayBorderMat.emissive.setHex(active ? 0x10B981 : 0xD59F0F);
+      this.trayBorderMat.emissiveIntensity = active ? 0.95 : 0.35;
+    }
   }
 
   private createSideCounter(): void {

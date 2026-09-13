@@ -114,7 +114,13 @@ export class XRManager {
   private setupSessionListeners(): void {
     this.renderer.xr.addEventListener('sessionstart', () => {
       this.isXRPresenting = true;
-      console.log('[XRManager] WebXR Session activa en Meta Quest / Visor.');
+      // Opción A: Calibración de posición y orientación para Meta Quest
+      // Sitúa el centro del área de juego detrás del mostrador (Z = -1.35m)
+      // y orienta 180° (Math.PI) para mirar de frente al mostrador y al alumno
+      this.xrRig.position.set(0, 0, -1.35);
+      this.xrRig.rotation.y = Math.PI;
+
+      console.log('[XRManager] WebXR Session activa en Meta Quest / Visor con calibración de operador.');
       events.emit('XR_SESSION_STATE', true);
       events.emit('SIMULATION_STARTED');
       const blocker = document.getElementById('blocker');
@@ -123,6 +129,8 @@ export class XRManager {
 
     this.renderer.xr.addEventListener('sessionend', () => {
       this.isXRPresenting = false;
+      this.xrRig.position.set(0, 0, 0);
+      this.xrRig.rotation.y = 0;
       console.log('[XRManager] WebXR Session finalizada.');
       events.emit('XR_SESSION_STATE', false);
     });

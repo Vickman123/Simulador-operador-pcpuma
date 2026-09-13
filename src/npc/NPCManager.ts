@@ -207,7 +207,8 @@ export class NPCManager {
         if (this.currentState === 'WAITING_VALIDATION' || this.currentState === 'AT_COUNTER' || this.currentState === 'ENTERING') {
           if (this.currentState !== 'ENTERING') {
             this.currentState = 'WAITING_EQUIPMENT';
-            this.student.say('¡Excelente! Mis datos están validados. Por favor devuélveme mi credencial para recibir la laptop.', 4.5);
+            events.emit('CREDENTIAL_TRAY_HIGHLIGHT', true);
+            this.student.say('¡Excelente! Mis datos están validados. Por favor devuélveme mi credencial en la bandeja para recibir la laptop.', 4.5);
           }
         }
       }
@@ -221,7 +222,7 @@ export class NPCManager {
 
         if (this.currentState === 'WAITING_EQUIPMENT') {
           if (!this.hasStudentReceivedCredentialInitial) {
-            this.student.say('Por favor devuélveme primero mi credencial de estudiante para poder recibir la laptop.', 4.5);
+            this.student.say('Por favor devuélveme primero mi credencial de estudiante en la bandeja para recibir la laptop.', 4.5);
             return;
           }
 
@@ -242,7 +243,8 @@ export class NPCManager {
     events.on('LAPTOP_SNAPPED_TO_CART', () => {
       if (this.currentState === 'AT_COUNTER_RETURNING') {
         this.isLaptopStoredInCart = true;
-        this.student.say('¡Equipo resguardado con éxito! Por favor devuélveme mi credencial para retirarme.', 4.5);
+        events.emit('CREDENTIAL_TRAY_HIGHLIGHT', true);
+        this.student.say('¡Equipo resguardado con éxito! Por favor devuélveme mi credencial en la bandeja para retirarme.', 4.5);
       }
     });
 
@@ -268,8 +270,9 @@ export class NPCManager {
     events.on('LOAN_REJECTED_SANCTION', () => {
       if (this.currentState === 'AT_COUNTER' || this.currentState === 'WAITING_VALIDATION') {
         this.currentState = 'AT_COUNTER_REJECTED';
+        events.emit('CREDENTIAL_TRAY_HIGHLIGHT', true);
         audio.playWarningBeep();
-        this.student.say('Entiendo, tengo que pasar a la coordinación a resolver mi adeudo antes de solicitar equipo. Por favor devuélveme mi credencial.', 5.0);
+        this.student.say('Entiendo, tengo que pasar a la coordinación a resolver mi adeudo antes de solicitar equipo. Por favor devuélveme mi credencial en la bandeja.', 5.0);
       }
     });
 
@@ -459,51 +462,68 @@ export class NPCManager {
       }
     }
 
-    // 3b. Detección de devolución de credencial a Juan en el mostrador
-    if (this.credentialRef && this.credentialRef.group.visible && !this.credentialRef.isGrabbed()) {
+    // 3b. Detección de devolución de credencial al alumno en el mostrador
+    if (this.credentialRef && this.credentialRef.group.visible) {
       const credWorldPos = new THREE.Vector3();
       this.credentialRef.group.getWorldPosition(credWorldPos);
 
-      // Zona del mostrador frente a Juan (X: [0.20, 0.90], Z: [-0.15, 0.40], Y: [1.05, 1.25])
-      const isNearJuanDesk = credWorldPos.x >= 0.20 && credWorldPos.x <= 0.90 &&
-                             credWorldPos.z >= -0.15 && credWorldPos.z <= 0.40 &&
-                             credWorldPos.y >= 1.05 && credWorldPos.y <= 1.25;
+      // Posición de la nueva Bandeja de Entrega (0.38, 1.08, 0.12)
+      const trayPos = new THREE.Vector3(0.38, 1.08, 0.12);
+      const distToTray = credWorldPos.distanceTo(trayPos);
+      const studentPos = this.counterPos;
+      const distToStudent = Math.hypot(credWorldPos.x - studentPos.x, credWorldPos.z - studentPos.z);
 
-      // A) Fase 1: Devolución de credencial en el préstamo inicial
-      if (this.currentState === 'WAITING_EQUIPMENT' && this.isUserValidated && !this.hasStudentReceivedCredentialInitial && isNearJuanDesk) {
-        this.credentialRef.group.visible = false;
-        this.hasStudentReceivedCredentialInitial = true;
-        audio.playVictoryChime();
-        this.student.say('¡Muchas gracias por devolverme mi credencial! Ahora quedo a la espera de la laptop.', 4.5);
-        events.emit('STUDENT_RECEIVED_CREDENTIAL', { studentName: this.student.config.name });
-        this.checkForLaptopOnCounter();
-      }
+      // Se considera cerca de la zona de entrega si está a menos de 50 cm de la bandeja
+      // o a menos de 85 cm del alumno sobre el mostrador, con altura adecuada
+      const isNearDeliveryZone = (distToTray < 0.50 || (distToStudent < 0.85 && credWorldPos.y > 0.85 && credWorldPos.y < 1.45));
 
-      // B) Fase 2: Devolución final de credencial al concluir la devolución
-      if (this.currentState === 'AT_COUNTER_RETURNING' && this.isLaptopStoredInCart && this.isReturnCredentialScanned && !this.hasReturnedCredentialFinal && isNearJuanDesk) {
-        this.credentialRef.group.visible = false;
-        this.hasReturnedCredentialFinal = true;
-        audio.playVictoryChime();
-        this.student.say('¡Todo en orden y completo! Muchas gracias por la atención y por entregarme mi credencial. ¡Hasta luego!', 5.0);
-        events.emit('STUDENT_RECEIVED_CREDENTIAL_RETURN', { studentName: this.student.config.name });
+      // Si el jugador la tiene agarrada en su mano y la extiende muy cerca del alumno (< 60 cm), el alumno la toma directamente
+      const isHandOffProximity = this.credentialRef.isGrabbed() && (distToTray < 0.40 || distToStudent < 0.65);
+      const canReceiveCredential = !this.credentialRef.isGrabbed() ? isNearDeliveryZone : isHandOffProximity;
 
-        setTimeout(() => {
-          this.currentState = 'EXITING';
-          this.student.exitRoom(this.entrancePos);
-        }, 1600);
-      }
+      if (canReceiveCredential) {
+        // A) Fase 1: Devolución de credencial en el préstamo inicial
+        if (this.currentState === 'WAITING_EQUIPMENT' && this.isUserValidated && !this.hasStudentReceivedCredentialInitial) {
+          this.credentialRef.release();
+          this.credentialRef.group.visible = false;
+          this.hasStudentReceivedCredentialInitial = true;
+          audio.playVictoryChime();
+          this.student.say('¡Muchas gracias por devolverme mi credencial! Ahora quedo a la espera de la laptop.', 4.5);
+          events.emit('CREDENTIAL_TRAY_HIGHLIGHT', false);
+          events.emit('STUDENT_RECEIVED_CREDENTIAL', { studentName: this.student.config.name });
+          this.checkForLaptopOnCounter();
+        }
 
-      // C) Devolución de credencial al alumno rechazado por normativa (Carlos)
-      if (this.currentState === 'AT_COUNTER_REJECTED' && isNearJuanDesk) {
-        this.credentialRef.group.visible = false;
-        audio.playVictoryChime();
-        this.student.say('Gracias por devolverme mi credencial. Pasaré a la coordinación a resolver mi adeudo. ¡Hasta luego!', 5.0);
-        events.emit('STUDENT_RECEIVED_CREDENTIAL_REJECTED', { studentName: this.student.config.name });
+        // B) Fase 2: Devolución final de credencial al concluir la devolución
+        if (this.currentState === 'AT_COUNTER_RETURNING' && this.isLaptopStoredInCart && this.isReturnCredentialScanned && !this.hasReturnedCredentialFinal) {
+          this.credentialRef.release();
+          this.credentialRef.group.visible = false;
+          this.hasReturnedCredentialFinal = true;
+          audio.playVictoryChime();
+          this.student.say('¡Todo en orden y completo! Muchas gracias por la atención y por entregarme mi credencial. ¡Hasta luego!', 5.0);
+          events.emit('CREDENTIAL_TRAY_HIGHLIGHT', false);
+          events.emit('STUDENT_RECEIVED_CREDENTIAL_RETURN', { studentName: this.student.config.name });
 
-        setTimeout(() => {
-          this.currentState = 'EXITING';
-          this.student.exitRoom(this.entrancePos);
-        }, 1600);
+          setTimeout(() => {
+            this.currentState = 'EXITING';
+            this.student.exitRoom(this.entrancePos);
+          }, 1600);
+        }
+
+        // C) Devolución de credencial al alumno rechazado por normativa (Carlos)
+        if (this.currentState === 'AT_COUNTER_REJECTED') {
+          this.credentialRef.release();
+          this.credentialRef.group.visible = false;
+          audio.playVictoryChime();
+          this.student.say('Gracias por devolverme mi credencial. Pasaré a la coordinación a resolver mi adeudo. ¡Hasta luego!', 5.0);
+          events.emit('CREDENTIAL_TRAY_HIGHLIGHT', false);
+          events.emit('STUDENT_RECEIVED_CREDENTIAL_REJECTED', { studentName: this.student.config.name });
+
+          setTimeout(() => {
+            this.currentState = 'EXITING';
+            this.student.exitRoom(this.entrancePos);
+          }, 1600);
+        }
       }
     }
 
