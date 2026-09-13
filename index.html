@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#002B49" />
+  <title>PC PUMA – Simulador de Operación de Préstamo (WebXR)</title>
+  <script type="module" crossorigin src="./assets/index-PnzDjh_S.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CTWEPt6I.css">
+</head>
+<body>
+  <!-- Canvas 3D Three.js Container -->
+  <div id="app"></div>
+
+  <!-- HUD en Modo Escritorio -->
+  <div id="hud-overlay">
+    <!-- Retícula central interactiva -->
+    <div id="reticle"></div>
+
+    <!-- Banner contextual de acción -->
+    <div id="action-prompt" class="hidden">
+      <span class="key-badge">E</span>
+      <span id="prompt-text">Tomar Laptop</span>
+    </div>
+
+    <!-- Panel de estado e información -->
+    <div id="status-panel">
+      <div class="panel-header">
+        <div class="status-indicator"></div>
+        <span class="status-title">PC PUMA XR</span>
+      </div>
+      <div class="status-body">
+        <div class="status-row">
+          <span class="status-label">Modo:</span>
+          <span id="status-mode" class="status-val">Escritorio (WASD)</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Estado:</span>
+          <span id="status-state" class="status-val">Operador Activo</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Mano/Mando:</span>
+          <span id="status-holding" class="status-val">Libre</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Puntos:</span>
+          <span id="status-score" class="status-val" style="color: #D59F0F;">1,000 PTS</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Racha:</span>
+          <span id="status-streak" class="status-val" style="color: #10B981;">x1</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Turno:</span>
+          <span id="status-timer" class="status-val" style="color: #38BDF8;">00:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenedor de notificaciones flotantes de puntuación -->
+    <div id="floating-scores-container"></div>
+
+    <!-- Instrucciones de control de escritorio -->
+    <div id="controls-guide">
+      <p><strong>[WASD]</strong> Moverse &nbsp;|&nbsp; <strong>[Mouse]</strong> Mirar &nbsp;|&nbsp; <strong>[E]</strong> Tomar/Soltar &nbsp;|&nbsp; <strong>[F]</strong> Guardar en Carro / Lector NFC</p>
+    </div>
+
+    <!-- Pantalla de bloqueo/inicio para activar el Mouse Lock -->
+    <div id="blocker">
+      <div id="instructions">
+        <div class="logo-badge">UNAM • PC PUMA</div>
+        <h1>Simulador de Préstamo</h1>
+        <p class="subtitle">Módulo de Operación Tecnológica</p>
+        <div class="instructions-card">
+          <p>🎮 <strong>Controles de Escritorio:</strong></p>
+          <ul>
+            <li><strong>W, A, S, D:</strong> Desplazarse por el área de mostrador</li>
+            <li><strong>Mouse:</strong> Mirar alrededor (360°)</li>
+            <li><strong>Click Izquierdo o [E]:</strong> Agarrar / Soltar equipos e interactuar</li>
+            <li><strong>[F]:</strong> Guardar automáticamente en Carro 01 / Colocar en Lector NFC</li>
+            <li><strong>ESC:</strong> Liberar el cursor</li>
+          </ul>
+          <p>🥽 <strong>Meta Quest 3S:</strong> Presiona el botón <em>ENTER VR</em> abajo para iniciar WebXR con seguimiento de manos o mandos.</p>
+        </div>
+        <button id="btn-start" class="start-button">Comenzar en Escritorio</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
