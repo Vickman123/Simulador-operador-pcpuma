@@ -205,6 +205,68 @@ export class DesktopHUD {
       closeModal(modalSettings);
     });
 
+    // Modal de Marcadores
+    const btnScores = document.getElementById('btn-scores');
+    const modalScores = document.getElementById('modal-scores');
+    const btnCloseScores = document.getElementById('btn-close-scores');
+    const btnScoresOk = document.getElementById('btn-modal-scores-ok');
+
+    const updateScoresModal = () => {
+      const scoreVal = document.getElementById('modal-score-val');
+      const rankVal = document.getElementById('modal-rank-val');
+      const streakVal = document.getElementById('modal-streak-val');
+      const loansCount = document.getElementById('modal-loans-count');
+      const inspectionsCount = document.getElementById('modal-inspections-count');
+      const incidentsCount = document.getElementById('modal-incidents-count');
+      const shiftTime = document.getElementById('modal-shift-time');
+      const historyList = document.getElementById('modal-score-history');
+
+      if (scoreVal) scoreVal.textContent = scoreManager.currentScore.toLocaleString();
+      if (rankVal) rankVal.textContent = scoreManager.getOperatorRank();
+      if (streakVal) streakVal.textContent = `x${scoreManager.maxStreakReached}`;
+      if (loansCount) loansCount.textContent = scoreManager.completedLoans.toString();
+      if (inspectionsCount) inspectionsCount.textContent = scoreManager.inspectedReturns.toString();
+      if (incidentsCount) incidentsCount.textContent = scoreManager.detectedIncidents.toString();
+      if (shiftTime) shiftTime.textContent = scoreManager.getFormattedShiftTime();
+
+      if (historyList) {
+        if (scoreManager.history.length === 0) {
+          historyList.innerHTML = '<div class="history-empty">Inicia tu turno pulsando EMPEZAR para registrar actividades.</div>';
+        } else {
+          historyList.innerHTML = scoreManager.history
+            .slice(0, 8)
+            .map((item) => {
+              const ptsClass = item.points >= 0 ? 'bonus' : 'penalty';
+              const ptsSign = item.points >= 0 ? `+${item.points}` : `${item.points}`;
+              return `
+                <div class="history-item-row">
+                  <span class="hist-time">[${item.timestamp}]</span>
+                  <span class="hist-reason">${item.reason}</span>
+                  <span class="hist-pts ${ptsClass}">${ptsSign} PTS</span>
+                </div>
+              `;
+            })
+            .join('');
+        }
+      }
+    };
+
+    btnScores?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      updateScoresModal();
+      openModal(modalScores);
+    });
+
+    btnCloseScores?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalScores);
+    });
+
+    btnScoresOk?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeModal(modalScores);
+    });
+
     // Control deslizante de volumen de audio
     const volumeSlider = document.getElementById('setting-volume') as HTMLInputElement | null;
     const volumeVal = document.getElementById('volume-val');

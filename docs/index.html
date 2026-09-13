@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#002B49" />
   <title>PC PUMA – Simulador de Operación de Préstamo (WebXR)</title>
-  <script type="module" crossorigin src="./assets/index-X3pO6S75.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-FxbN1lKp.css">
+  <script type="module" crossorigin src="./assets/index-QGk6H84Y.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DmscoQM5.css">
 </head>
 <body>
   <!-- Canvas 3D Three.js Container -->
@@ -68,34 +68,79 @@
     <!-- Pantalla de Inicio y Menú Principal -->
     <div id="blocker">
       <div id="main-menu-card">
-        <div class="menu-branding">
-          <div class="unam-emblem">🏛️ UNAM • DGTIC • PC PUMA</div>
-          <h1 class="main-title">SIMULADOR DE OPERADOR PC PUMA</h1>
-          <p class="main-subtitle">Entorno Virtual de Capacitación y Protocolo de Préstamo de Equipo</p>
+        <div class="menu-branding-logo">
+          <img src="pc_puma_logo.png" alt="PC PUMA Programa de Conectividad Móvil - Simulador de Operador" class="menu-logo-img" />
         </div>
 
         <div class="menu-actions">
-          <button id="btn-start" class="menu-btn primary-btn">
-            <span class="btn-icon">▶</span>
+          <button id="btn-start" class="menu-btn pill-btn-primary">
+            <span class="btn-icon-box">
+              <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v13.72a1 1 0 001.55.83l11-6.86a1 1 0 000-1.66l-11-6.86A1 1 0 008 5.14z"/>
+              </svg>
+            </span>
+            <span class="btn-divider-v"></span>
             <span class="btn-text">EMPEZAR</span>
+            <span class="btn-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </span>
           </button>
-          <button id="btn-controls" class="menu-btn secondary-btn">
-            <span class="btn-icon">🎮</span>
+
+          <button id="btn-controls" class="menu-btn pill-btn-secondary">
+            <span class="btn-icon-box">
+              <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 6H3a2 2 0 00-2 2v8a2 2 0 002 2h18a2 2 0 002-2V8a2 2 0 00-2-2zm-10 7H9v2H7v-2H5v-2h2V9h2v2h2v2zm4.5 2a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3-3a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+              </svg>
+            </span>
+            <span class="btn-divider-v"></span>
             <span class="btn-text">CONTROLES</span>
+            <span class="btn-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </span>
           </button>
-          <button id="btn-settings" class="menu-btn secondary-btn">
-            <span class="btn-icon">⚙️</span>
+
+          <button id="btn-settings" class="menu-btn pill-btn-secondary">
+            <span class="btn-icon-box">
+              <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.484.484 0 0014.9 3h-3.8c-.24 0-.44.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.75 9.47a.47.47 0 00.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.8c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 110-7.2 3.6 3.6 0 010 7.2z"/>
+              </svg>
+            </span>
+            <span class="btn-divider-v"></span>
             <span class="btn-text">CONFIGURACIÓN</span>
+            <span class="btn-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </span>
+          </button>
+
+          <button id="btn-scores" class="menu-btn pill-btn-secondary">
+            <span class="btn-icon-box">
+              <svg class="btn-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zM16.2 13H19v6h-2.8z"/>
+              </svg>
+            </span>
+            <span class="btn-divider-v"></span>
+            <span class="btn-text">MARCADORES</span>
+            <span class="btn-chevron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </span>
           </button>
         </div>
 
-        <div class="menu-vr-hint">
-          <span>🥽 <strong>Meta Quest 3S / WebXR:</strong> Para experiencia inmersiva en visor, pulsa el botón <em>ENTER VR</em> en la esquina inferior derecha.</span>
-        </div>
-
-        <div class="menu-footer">
-          <p class="developer-credit">Desarrollado por <strong>Victor M. Carreño G.</strong></p>
-          <p class="institution-text">Universidad Nacional Autónoma de México • Sistema PC PUMA</p>
+        <div class="menu-footer-clean">
+          <span class="footer-line"></span>
+          <div class="footer-credit-block">
+            <span class="credit-sub">Desarrollado por</span>
+            <span class="credit-name">Victor M. Carreño G.</span>
+          </div>
+          <span class="footer-line"></span>
         </div>
       </div>
 
@@ -187,6 +232,73 @@
           </div>
           <div class="modal-footer">
             <button id="btn-modal-settings-save" class="modal-btn">Guardar y Cerrar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal de Marcadores / Historial de Operaciones -->
+      <div id="modal-scores" class="modal-overlay hidden">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h3>📊 Desempeño Operativo UNAM</h3>
+            <button id="btn-close-scores" class="modal-close-btn">&times;</button>
+          </div>
+          <div class="modal-body scores-modal-body">
+            <div class="score-summary-grid">
+              <div class="stat-summary-card">
+                <span class="stat-sub">Puntaje Total</span>
+                <span id="modal-score-val" class="stat-big-val">1,000</span>
+              </div>
+              <div class="stat-summary-card highlight">
+                <span class="stat-sub">Rango Oficial UNAM</span>
+                <span id="modal-rank-val" class="stat-rank-text">OPERADOR CAPACITADO</span>
+              </div>
+              <div class="stat-summary-card">
+                <span class="stat-sub">Racha Máxima</span>
+                <span id="modal-streak-val" class="stat-big-val">x1</span>
+              </div>
+            </div>
+
+            <div class="metrics-two-cols">
+              <div class="metric-box">
+                <span class="metric-icon">💻</span>
+                <div class="metric-info">
+                  <span class="metric-title">Préstamos Conformes</span>
+                  <span id="modal-loans-count" class="metric-number">0</span>
+                </div>
+              </div>
+              <div class="metric-box">
+                <span class="metric-icon">🔍</span>
+                <div class="metric-info">
+                  <span class="metric-title">Peritajes Técnicos</span>
+                  <span id="modal-inspections-count" class="metric-number">0</span>
+                </div>
+              </div>
+              <div class="metric-box">
+                <span class="metric-icon">⚠️</span>
+                <div class="metric-info">
+                  <span class="metric-title">Incidencias Reportadas</span>
+                  <span id="modal-incidents-count" class="metric-number">0</span>
+                </div>
+              </div>
+              <div class="metric-box">
+                <span class="metric-icon">⏱️</span>
+                <div class="metric-info">
+                  <span class="metric-title">Tiempo de Turno</span>
+                  <span id="modal-shift-time" class="metric-number">00:00</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-container">
+              <div class="history-title">Registro de Actividad de Turno</div>
+              <div id="modal-score-history" class="history-items-list">
+                <div class="history-empty">Inicia tu turno pulsando EMPEZAR para registrar actividades.</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="btn-modal-scores-ok" class="modal-btn">Entendido</button>
           </div>
         </div>
       </div>
