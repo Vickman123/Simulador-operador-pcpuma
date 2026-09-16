@@ -139,6 +139,27 @@ export class StorageCart {
       this.group.add(wheel);
     });
 
+    // Sombra de contacto / Ambient Occlusion suave bajo el carro móvil
+    const cartShadowGeo = new THREE.PlaneGeometry(width + 0.25, depth + 0.25);
+    const cartShadowCanvas = document.createElement('canvas');
+    cartShadowCanvas.width = 128;
+    cartShadowCanvas.height = 128;
+    const csCtx = cartShadowCanvas.getContext('2d')!;
+    const cGrad = csCtx.createRadialGradient(64, 64, 8, 64, 64, 60);
+    cGrad.addColorStop(0, 'rgba(15, 23, 42, 0.65)');
+    cGrad.addColorStop(0.6, 'rgba(15, 23, 42, 0.25)');
+    cGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+    csCtx.fillStyle = cGrad;
+    csCtx.fillRect(0, 0, 128, 128);
+    const cartShadowTex = new THREE.CanvasTexture(cartShadowCanvas);
+    const cartShadow = new THREE.Mesh(
+      cartShadowGeo,
+      new THREE.MeshBasicMaterial({ map: cartShadowTex, transparent: true, depthWrite: false })
+    );
+    cartShadow.rotation.x = -Math.PI / 2;
+    cartShadow.position.set(0, 0.002, 0);
+    this.group.add(cartShadow);
+
     // Manillar de empuje metálico ergonómico dorado
     const handleMat = new THREE.MeshStandardMaterial({ color: 0xD59F0F, metalness: 0.8, roughness: 0.3 });
     const pushBar = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, width * 0.75), handleMat);

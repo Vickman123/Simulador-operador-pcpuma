@@ -42,11 +42,32 @@ export class Counter {
     body.receiveShadow = true;
     this.group.add(body);
 
+    // Sombra de contacto / Ambient Occlusion suave bajo el mostrador (estilo RTX)
+    const shadowGeo = new THREE.PlaneGeometry(counterWidth + 0.35, counterDepth + 0.35);
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = 256;
+    shadowCanvas.height = 128;
+    const sCtx = shadowCanvas.getContext('2d')!;
+    const grad = sCtx.createRadialGradient(128, 64, 10, 128, 64, 125);
+    grad.addColorStop(0, 'rgba(10, 15, 26, 0.7)');
+    grad.addColorStop(0.55, 'rgba(10, 15, 26, 0.32)');
+    grad.addColorStop(1, 'rgba(10, 15, 26, 0)');
+    sCtx.fillStyle = grad;
+    sCtx.fillRect(0, 0, 256, 128);
+    const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+    const contactShadow = new THREE.Mesh(
+      shadowGeo,
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
+    );
+    contactShadow.rotation.x = -Math.PI / 2;
+    contactShadow.position.set(0, 0.002, 0);
+    this.group.add(contactShadow);
+
     // Encimera / Superficie de trabajo (cubierta superior)
     const topMat = new THREE.MeshStandardMaterial({
       color: 0xF1F5F9,
-      roughness: 0.25,
-      metalness: 0.15
+      roughness: 0.22,
+      metalness: 0.18
     });
 
     const top = new THREE.Mesh(

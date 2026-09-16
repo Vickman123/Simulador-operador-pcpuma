@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export type Updatable = (delta: number, elapsedTime: number) => void;
 
@@ -24,8 +25,8 @@ export class Engine {
 
     // 2. Escena 3D
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x07111e);
-    this.scene.fog = new THREE.FogExp2(0x07111e, 0.035);
+    this.scene.background = new THREE.Color(0x0a111a);
+    this.scene.fog = new THREE.FogExp2(0x0a111a, 0.028);
 
     // 3. Cámara en primera persona
     const aspect = window.innerWidth / window.innerHeight;
@@ -39,17 +40,18 @@ export class Engine {
     this.xrRig.add(this.camera);
     this.scene.add(this.xrRig);
 
-    // 5. Renderer WebGL + WebXR
+    // 5. Renderer WebGL + WebXR calibrado para calidad cinematográfica RTX en móvil
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance'
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Penumbra suave estilo ray tracing
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // Curva de respuesta fotográfica cinematográfica
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.xr.enabled = true; // Activar capacidad WebXR
 
     this.container.appendChild(this.renderer.domElement);
@@ -57,7 +59,7 @@ export class Engine {
     // 6. Event listeners de redimensionamiento
     window.addEventListener('resize', this.onWindowResize.bind(this));
 
-    // 7. Iluminación base
+    // 7. Iluminación IBL + Luces físicas
     this.setupLighting();
 
     // 8. Iniciar bucle de renderizado compatible con WebXR
@@ -65,29 +67,55 @@ export class Engine {
   }
 
   private setupLighting(): void {
-    // Luz ambiental suave para sombras no totalmente negras
-    const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.85);
-    this.scene.add(ambientLight);
+    // 1. Image-Based Lighting (IBL) precalculado con RoomEnvironment:
+    // Otorga a todos los materiales PBR reflejos Fresnel de estudio, brillo metálico realista y rebote difuso natural (0 costo por frame en Meta Quest)
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const roomEnv = new RoomEnvironment();
+    const envTexture = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+    this.scene.environment = envTexture;
+    this.scene.environmentIntensity = 0.92;
+    roomEnv.dispose();
+    pmremGenerator.dispose();
 
-    // Luz principal de techo centrada en el mostrador
-    const ceilingSpot = new THREE.SpotLight(0xffffff, 2.5);
-    ceilingSpot.position.set(0, 3.1, 0.2);
-    ceilingSpot.target.position.set(0, 1.0, 0.2);
-    ceilingSpot.angle = Math.PI / 3;
-    ceilingSpot.penumbra = 0.5;
-    ceilingSpot.castShadow = true;
-    ceilingSpot.shadow.mapSize.width = 1024;
-    ceilingSpot.shadow.mapSize.height = 1024;
-    ceilingSpot.shadow.camera.near = 0.5;
-    ceilingSpot.shadow.camera.far = 5;
-    ceilingSpot.shadow.bias = -0.001;
-    this.scene.add(ceilingSpot);
-    this.scene.add(ceilingSpot.target);
+    // 2. Simulación de rebote de luz global (GI Bounced Light):
+    // Luz superior blanco neutro institucional (5000K) + rebote difuso suave reflejado por el piso
+    const hemiLight = new THREE.HemisphereLight(0xF8FAFC, 0xCBD5E1, 0.72);
+    hemiLight.position.set(0, 3.2, 0);
+    this.scene.add(hemiLight);
 
-    // Luz de relleno cálida institucional
-    const fillLight = new THREE.DirectionalLight(0xe2e8f0, 0.6);
-    fillLight.position.set(2, 2.8, -2);
-    this.scene.add(fillLight);
+    // 3. Luz clave principal (Key Light) de techo sobre la zona de atención al cliente
+    const keySpot = new THREE.SpotLight(0xFFFAF0, 3.0); // 4500K blanco cálido institucional
+    keySpot.position.set(0, 3.15, 0.2);
+    keySpot.target.position.set(0, 1.0, 0.15);
+    keySpot.angle = Math.PI / 2.8;
+    keySpot.penumbra = 0.65; // Transición gradual suave en bordes de sombra
+    keySpot.castShadow = true;
+    keySpot.shadow.mapSize.width = 1024;
+    keySpot.shadow.mapSize.height = 1024;
+    keySpot.shadow.camera.near = 0.4;
+    keySpot.shadow.camera.far = 5.2;
+    keySpot.shadow.bias = -0.0002;
+    keySpot.shadow.normalBias = 0.035; // Crucial: elimina acné de sombras en personajes y superficies curvas
+    keySpot.shadow.radius = 2.0; // Suavizado de penumbra tipo área de luz física
+    this.scene.add(keySpot);
+    this.scene.add(keySpot.target);
+
+    // 4. Luces de relleno secundarias (Fill Lights) simulando los paneles LED de la sala (sin sombras = 0 impacto en Quest)
+    // Relleno zona operador y muro UNAM
+    const fillOperator = new THREE.DirectionalLight(0xE2E8F0, 0.42);
+    fillOperator.position.set(-1.5, 3.0, -2.5);
+    this.scene.add(fillOperator);
+
+    // Relleno pasillo de entrada del estudiante
+    const fillEntrance = new THREE.DirectionalLight(0xE8F0FE, 0.45);
+    fillEntrance.position.set(1.5, 3.0, 2.8);
+    this.scene.add(fillEntrance);
+
+    // Luz de acento sutil en el mostrador para resaltar credenciales y laptops
+    const counterAccent = new THREE.PointLight(0xFFFFFF, 0.5, 3.2, 1.4);
+    counterAccent.position.set(0, 2.0, 0.0);
+    this.scene.add(counterAccent);
   }
 
   private onWindowResize(): void {

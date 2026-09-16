@@ -52,8 +52,8 @@ export class Room {
 
     const floorMat = new THREE.MeshStandardMaterial({
       map: floorTex,
-      roughness: 0.45,
-      metalness: 0.1
+      roughness: 0.35,
+      metalness: 0.12
     });
 
     // Carga asistida de loseta personalizada si se sube a public/textures/floor_tiles.png
@@ -122,21 +122,21 @@ export class Room {
       wallMesh.receiveShadow = true;
       this.group.add(wallMesh);
 
-      // Franja azul (a 1.3m de altura)
+      // Franja azul institucional en la parte media
       const blueStripe = new THREE.Mesh(
-        new THREE.BoxGeometry(wallLength, 0.25, wallThickness + 0.01),
+        new THREE.BoxGeometry(wallLength, 0.28, wallThickness + 0.01),
         unamBlueMat
       );
-      blueStripe.position.set(posX, 1.3, posZ);
+      blueStripe.position.set(posX, 1.25, posZ);
       blueStripe.rotation.y = rotY;
       this.group.add(blueStripe);
 
-      // Franja dorada
+      // Franja dorada decorativa
       const goldStripe = new THREE.Mesh(
-        new THREE.BoxGeometry(wallLength, 0.05, wallThickness + 0.012),
+        new THREE.BoxGeometry(wallLength, 0.06, wallThickness + 0.012),
         unamGoldMat
       );
-      goldStripe.position.set(posX, 1.45, posZ);
+      goldStripe.position.set(posX, 1.42, posZ);
       goldStripe.rotation.y = rotY;
       this.group.add(goldStripe);
 
@@ -220,33 +220,44 @@ export class Room {
     posterCanvas.width = 512;
     posterCanvas.height = 768;
     const pCtx = posterCanvas.getContext('2d')!;
+
     pCtx.fillStyle = '#FFFFFF';
     pCtx.fillRect(0, 0, 512, 768);
-    pCtx.strokeStyle = '#0076F5';
-    pCtx.lineWidth = 12;
-    pCtx.strokeRect(6, 6, 500, 756);
-    pCtx.fillStyle = '#003B7A';
-    pCtx.font = 'bold 30px sans-serif';
+
+    pCtx.fillStyle = '#002B49';
+    pCtx.fillRect(0, 0, 512, 110);
+
+    pCtx.fillStyle = '#D59F0F';
+    pCtx.font = 'bold 24px sans-serif';
     pCtx.textAlign = 'center';
-    pCtx.fillText('REGLAMENTO OFICIAL', 256, 55);
-    pCtx.font = 'bold 22px sans-serif';
-    pCtx.fillText('PROGRAMA PC PUMA UNAM', 256, 95);
-    pCtx.fillStyle = '#475569';
+    pCtx.fillText('REGLAMENTO OFICIAL', 256, 45);
+
+    pCtx.fillStyle = '#FFFFFF';
+    pCtx.font = 'bold 20px sans-serif';
+    pCtx.fillText('PRÉSTAMO DE EQUIPO DE CÓMPUTO', 256, 85);
+
+    pCtx.fillStyle = '#1E293B';
     pCtx.font = '16px sans-serif';
     pCtx.textAlign = 'left';
-    pCtx.fillText('• Préstamo máximo: 2 horas por turno.', 40, 160);
-    pCtx.fillText('• Presentar credencial UNAM vigente.', 40, 200);
-    pCtx.fillText('• Peritaje de 5 puntos al recibir el equipo.', 40, 240);
-    pCtx.fillText('• Resguardo y carga obligatoria en Carro 01.', 40, 280);
-    pCtx.fillText('• Cualquier anomalía debe reportarse al operador.', 40, 320);
+    const rules = [
+      '1. Presentar credencial UNAM vigente.',
+      '2. Revisión visual del equipo entregado.',
+      '3. Uso exclusivo en áreas autorizadas.',
+      '4. Devolver con batería completa.',
+      '5. Reportar cualquier falla al operador.'
+    ];
+    rules.forEach((rule, idx) => {
+      pCtx.fillText(rule, 35, 160 + idx * 45);
+    });
 
+    const posterTex = new THREE.CanvasTexture(posterCanvas);
     const posterMat = new THREE.MeshStandardMaterial({
-      map: new THREE.CanvasTexture(posterCanvas),
-      roughness: 0.35
+      map: posterTex,
+      roughness: 0.4
     });
 
     texLoader.load(
-      'images/poster_rules.png',
+      'images/rules_poster.png',
       (customPosterTex) => {
         posterMat.map = customPosterTex;
         posterMat.needsUpdate = true;
@@ -262,7 +273,7 @@ export class Room {
   }
 
   private createCeilingLamps(): void {
-    // 4 Paneles LED de iluminación de oficina
+    // 4 Paneles LED empotrados con bisel de aluminio y difusor acrílico brillante
     const lampPositions = [
       [-1.8, 3.18, -1.5],
       [1.8, 3.18, -1.5],
@@ -270,18 +281,30 @@ export class Room {
       [1.8, 3.18, 1.8]
     ];
 
-    const lampGeo = new THREE.BoxGeometry(1.2, 0.05, 0.6);
-    const lampMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xf8fafc,
-      emissiveIntensity: 0.9,
-      roughness: 0.2
+    const frameGeo = new THREE.BoxGeometry(1.24, 0.04, 0.64);
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      metalness: 0.8,
+      roughness: 0.25
+    });
+
+    const panelGeo = new THREE.BoxGeometry(1.16, 0.035, 0.56);
+    const panelMat = new THREE.MeshStandardMaterial({
+      color: 0xFFFFFF,
+      emissive: 0xFFFBF2,
+      emissiveIntensity: 1.5,
+      roughness: 0.15
     });
 
     lampPositions.forEach(([x, y, z]) => {
-      const lamp = new THREE.Mesh(lampGeo, lampMat);
-      lamp.position.set(x, y, z);
-      this.group.add(lamp);
+      const lampGroup = new THREE.Group();
+      const frame = new THREE.Mesh(frameGeo, frameMat);
+      const panel = new THREE.Mesh(panelGeo, panelMat);
+      panel.position.y = -0.005;
+      lampGroup.add(frame);
+      lampGroup.add(panel);
+      lampGroup.position.set(x, y, z);
+      this.group.add(lampGroup);
     });
   }
 
@@ -289,7 +312,8 @@ export class Room {
     // Mesas de trabajo en la zona de estudiantes (Z > 1.8)
     const tableMat = new THREE.MeshStandardMaterial({
       color: 0xCBD5E1,
-      roughness: 0.5
+      roughness: 0.45,
+      metalness: 0.1
     });
     const legMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
@@ -300,6 +324,27 @@ export class Room {
     const createTable = (x: number, z: number) => {
       const tableGroup = new THREE.Group();
       
+      // Sombra de contacto / Ambient Occlusion suave bajo la mesa
+      const tableShadowGeo = new THREE.PlaneGeometry(2.0, 1.1);
+      const tableShadowCanvas = document.createElement('canvas');
+      tableShadowCanvas.width = 128;
+      tableShadowCanvas.height = 64;
+      const tsCtx = tableShadowCanvas.getContext('2d')!;
+      const tsGrad = tsCtx.createRadialGradient(64, 32, 5, 64, 32, 58);
+      tsGrad.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
+      tsGrad.addColorStop(0.6, 'rgba(15, 23, 42, 0.2)');
+      tsGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+      tsCtx.fillStyle = tsGrad;
+      tsCtx.fillRect(0, 0, 128, 64);
+      const tableShadowTex = new THREE.CanvasTexture(tableShadowCanvas);
+      const tableShadow = new THREE.Mesh(
+        tableShadowGeo,
+        new THREE.MeshBasicMaterial({ map: tableShadowTex, transparent: true, depthWrite: false })
+      );
+      tableShadow.rotation.x = -Math.PI / 2;
+      tableShadow.position.set(0, 0.002, 0);
+      tableGroup.add(tableShadow);
+
       // Superficie
       const top = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.9), tableMat);
       top.position.y = 0.74;
