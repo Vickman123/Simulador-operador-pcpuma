@@ -22,46 +22,53 @@
       <span id="prompt-text">Tomar Laptop</span>
     </div>
 
-    <!-- Panel de estado e información -->
-    <div id="status-panel" class="pre-start-hidden">
-      <div class="panel-header">
+    <!-- Cápsula HUD Superior Izquierda (Píldora Ultra-Compacta) -->
+    <div id="status-panel" class="pre-start-hidden hud-pill">
+      <div class="hud-pill-segment brand-segment">
         <div class="status-indicator"></div>
-        <span class="status-title">PC PUMA XR</span>
+        <span class="status-title">PC PUMA</span>
       </div>
-      <div class="status-body">
-        <div class="status-row">
-          <span class="status-label">Modo:</span>
-          <span id="status-mode" class="status-val">Escritorio (WASD)</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Estado:</span>
-          <span id="status-state" class="status-val">Operador Activo</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Mano/Mando:</span>
-          <span id="status-holding" class="status-val">Libre</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Puntos:</span>
-          <span id="status-score" class="status-val" style="color: #D59F0F;">1,000 PTS</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Racha:</span>
-          <span id="status-streak" class="status-val" style="color: #10B981;">x1</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Turno:</span>
-          <span id="status-timer" class="status-val" style="color: #38BDF8;">00:00</span>
-        </div>
+      <div class="hud-sep"></div>
+      <div class="hud-pill-segment score-segment">
+        <span class="hud-icon">🏆</span>
+        <span id="status-score" class="status-val hud-score-val">1,000 PTS</span>
       </div>
+      <div class="hud-sep"></div>
+      <div class="hud-pill-segment streak-segment">
+        <span id="status-streak" class="status-val hud-streak-badge">x1</span>
+      </div>
+      <div class="hud-sep"></div>
+      <div class="hud-pill-segment timer-segment">
+        <span class="hud-icon">⏱</span>
+        <span id="status-timer" class="status-val hud-timer-val">00:00</span>
+      </div>
+      <div class="hud-sep"></div>
+      <div class="hud-pill-segment state-segment">
+        <span id="status-state" class="status-val hud-state-val">Operador Activo</span>
+      </div>
+      <div id="status-holding-container" class="hud-pill-segment holding-segment">
+        <span class="hud-icon">📦</span>
+        <span id="status-holding" class="status-val hud-holding-val">Libre</span>
+      </div>
+      <span id="status-mode" class="hud-mode-hidden">Escritorio (WASD)</span>
     </div>
 
     <!-- Contenedor de notificaciones flotantes de puntuación -->
     <div id="floating-scores-container"></div>
 
-    <!-- Instrucciones de control de escritorio -->
+    <!-- Guía de Controles Minimalista y Discreta -->
     <div id="controls-guide" class="pre-start-hidden">
-      <p><strong>[WASD]</strong> Moverse &nbsp;|&nbsp; <strong>[Mouse]</strong> Mirar &nbsp;|&nbsp; <strong>[E]</strong> Tomar/Soltar &nbsp;|&nbsp; <strong>[Q/R]</strong> Rotar &nbsp;|&nbsp; <strong>[X/Y / Rueda]</strong> Zoom &nbsp;|&nbsp; <strong>[F]</strong> Carro / NFC</p>
+      <div class="controls-pill">
+        <span class="ctrl-tag"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Mover</span>
+        <span class="ctrl-dot">•</span>
+        <span class="ctrl-tag"><kbd>Mouse</kbd> Mirar</span>
+        <span class="ctrl-dot">•</span>
+        <span class="ctrl-tag"><kbd>E</kbd> Tomar / Soltar</span>
+        <span class="ctrl-dot">•</span>
+        <span class="ctrl-tag"><kbd>Q</kbd><kbd>R</kbd> Rotar</span>
+        <span class="ctrl-dot">•</span>
+        <span class="ctrl-tag"><kbd>F</kbd> NFC / Carro</span>
+      </div>
     </div>
 
     <!-- Pantalla de Inicio y Menú Principal -->

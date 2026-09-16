@@ -5,7 +5,7 @@ export class ChecklistUI {
   private container: HTMLElement;
   private banner: HTMLElement;
   private modal: HTMLElement | null = null;
-  private isCollapsed: boolean = false;
+  private isCollapsed: boolean = true;
   private currentStudentInfo: string = 'Juan Pérez López (1/3)';
 
   constructor() {
@@ -76,33 +76,40 @@ export class ChecklistUI {
     const progress = tutorial.getProgressPercentage();
     const tasks = tutorial.tasks;
     const completedCount = tasks.filter((t) => t.completed).length;
+    const currentTask = tutorial.getCurrentTask();
+    const currentIdx = currentTask ? tasks.findIndex((t) => t.id === currentTask.id) + 1 : tasks.length;
 
     this.container.innerHTML = `
-      <div class="checklist-header">
+      <div class="checklist-header ${this.isCollapsed ? 'is-collapsed' : ''}">
         <div class="checklist-title-group">
           <span class="checklist-icon">📋</span>
-          <div>
-            <h3 class="checklist-title">Checklist de Operación</h3>
+          <div class="checklist-title-text">
+            <div class="checklist-header-top">
+              <h3 class="checklist-title">${this.isCollapsed ? (currentTask ? currentTask.title : 'Operación Concluida') : 'Checklist de Operación'}</h3>
+              <span class="checklist-step-badge">${currentIdx}/${tasks.length}</span>
+            </div>
             <span class="checklist-subtitle">PC PUMA • ${this.currentStudentInfo}</span>
           </div>
         </div>
-        <button id="btn-toggle-checklist" class="btn-toggle" title="Minimizar / Expandir">
-          ${this.isCollapsed ? '▼' : '▲'}
+        <button id="btn-toggle-checklist" class="btn-toggle" title="${this.isCollapsed ? 'Ver tareas completas' : 'Minimizar lista'}">
+          <span class="toggle-icon">${this.isCollapsed ? '▼' : '▲'}</span>
+          <span class="toggle-text">${this.isCollapsed ? 'Tareas' : 'Minimizar'}</span>
         </button>
       </div>
 
       <div class="progress-bar-container">
         <div class="progress-bar-fill" style="width: ${progress}%"></div>
       </div>
+
+      ${!this.isCollapsed ? `
       <div class="progress-label">
-        <span>Progreso: <strong>${progress}%</strong></span>
+        <span>Progreso general: <strong>${progress}%</strong></span>
         <span>(${completedCount} de ${tasks.length} tareas)</span>
       </div>
 
-      <div class="checklist-body ${this.isCollapsed ? 'collapsed' : ''}">
+      <div class="checklist-body">
         ${tasks
           .map((task, idx) => {
-            const currentTask = tutorial.getCurrentTask();
             const isCurrent = currentTask?.id === task.id;
             return `
             <div class="task-item ${task.completed ? 'completed' : ''} ${isCurrent ? 'active' : ''}">
@@ -118,6 +125,7 @@ export class ChecklistUI {
           })
           .join('')}
       </div>
+      ` : ''}
     `;
 
     const toggleBtn = document.getElementById('btn-toggle-checklist');

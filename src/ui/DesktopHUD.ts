@@ -113,9 +113,17 @@ export class DesktopHUD {
       }
 
       const hudOverlay = document.getElementById('hud-overlay');
+      const checklistPanel = document.getElementById('checklist-panel');
+      const tutorialBanner = document.getElementById('tutorial-banner');
       if (hudOverlay) {
-        // En VR podemos atenuar el HUD de pantalla 2D ya que la interacción ocurre en el espacio 3D
-        hudOverlay.style.opacity = isVR ? '0.2' : '1.0';
+        // En VR ocultamos el HUD 2D de escritorio para no estorbar en realidad virtual
+        hudOverlay.style.display = isVR ? 'none' : 'block';
+      }
+      if (checklistPanel) {
+        checklistPanel.style.display = isVR ? 'none' : 'block';
+      }
+      if (tutorialBanner) {
+        tutorialBanner.style.display = isVR ? 'none' : 'flex';
       }
     });
 

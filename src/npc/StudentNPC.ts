@@ -226,21 +226,26 @@ export class StudentNPC {
         model.position.x = 0;
         model.position.z = 0;
 
-        // Asignar textura diffuse de la UNAM en alta resolución
-        texLoader.load('textures/student_texture.png', (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          model.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-              const mesh = child as THREE.SkinnedMesh;
-              mesh.material = new THREE.MeshStandardMaterial({
-                map: tex,
-                roughness: 0.65,
-                metalness: 0.1
-              });
-              mesh.castShadow = true;
-              mesh.receiveShadow = true;
+        // Cargar textura institucional UNAM con espacio de color SRGB
+        const studentTexture = texLoader.load('textures/student_texture.png');
+        studentTexture.colorSpace = THREE.SRGBColorSpace;
+
+        // CRÍTICO: Recalcular normales de vértice para que Three.js pueda calcular la iluminación PBR.
+        // Sin normales, el modelo se renderiza como silueta 100% negra.
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.SkinnedMesh;
+            if (mesh.geometry) {
+              mesh.geometry.computeVertexNormals();
             }
-          });
+            mesh.material = new THREE.MeshStandardMaterial({
+              map: studentTexture,
+              roughness: 0.65,
+              metalness: 0.05
+            });
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+          }
         });
 
         // Crear el mezclador de animaciones
@@ -253,6 +258,15 @@ export class StudentNPC {
           const walkAction = mixer.clipAction(walkClip);
           walkAction.setLoop(THREE.LoopRepeat, Infinity);
           this.actions.set('walk', walkAction);
+
+          // Clip de Idle preliminar (frame 0 de Walking) por si Stand To Sit aún no finaliza
+          const tempIdleClip = this.makeInPlace(
+            THREE.AnimationUtils.subclip(model.animations[0], 'temp_idle', 0, 2, 30),
+            'temp_idle'
+          );
+          const tempIdleAction = mixer.clipAction(tempIdleClip);
+          tempIdleAction.setLoop(THREE.LoopRepeat, Infinity);
+          this.actions.set('temp_idle', tempIdleAction);
         }
 
         this.customModel = model;
@@ -273,15 +287,27 @@ export class StudentNPC {
           }
         });
 
-        // Clip 3: Sentarse en la silla (Stand To Sit)
+        // Clip 3: Sentarse en la silla (Stand To Sit) y extracción de postura Idle natural
         fbxLoader.load('models/animations/Stand To Sit.fbx', (animObj) => {
           if (animObj.animations && animObj.animations.length > 0) {
+            // Extraer clip 'idle' (frames 0-15: postura de pie erguida, brazos relajados a los lados y respiración sutil)
+            const rawIdleClip = THREE.AnimationUtils.subclip(animObj.animations[0], 'idle', 0, 15, 30);
+            const idleClip = this.makeInPlace(rawIdleClip, 'idle');
+            const idleAction = mixer.clipAction(idleClip);
+            idleAction.setLoop(THREE.LoopRepeat, Infinity);
+            this.actions.set('idle', idleAction);
+
             const sitClip = animObj.animations[0].clone();
             sitClip.name = 'sit';
             const sitAction = mixer.clipAction(sitClip);
             sitAction.setLoop(THREE.LoopOnce, 1);
             sitAction.clampWhenFinished = true;
             this.actions.set('sit', sitAction);
+
+            // Si el alumno no está caminando ni sentado, reproducir idle de inmediato
+            if (!this.isWalking && !this.isSeated) {
+              this.playAnimation('idle', 0.4);
+            }
           }
         });
 
@@ -295,9 +321,11 @@ export class StudentNPC {
           }
         });
 
-        // Si ya había una caminata en curso al cargarse, reproducir walk de inmediato
+        // Si ya había una caminata en curso al cargarse, reproducir walk; de lo contrario idle
         if (this.isWalking) {
           this.playAnimation('walk');
+        } else {
+          this.playAnimation('idle');
         }
 
         console.log('[StudentNPC] Modelo animado FBX y clips Mixamo cargados con éxito.');
@@ -330,9 +358,15 @@ export class StudentNPC {
 
   public playAnimation(name: string, fadeDuration: number = 0.35): void {
     if (!this.mixer) return;
-    if (this.currentActionName === name) return;
 
-    const nextAction = this.actions.get(name);
+    let targetName = name;
+    if (targetName === 'idle' && !this.actions.has('idle') && this.actions.has('temp_idle')) {
+      targetName = 'temp_idle';
+    }
+
+    if (this.currentActionName === targetName) return;
+
+    const nextAction = this.actions.get(targetName);
     if (!nextAction) return;
 
     if (this.currentActionName) {
@@ -343,7 +377,7 @@ export class StudentNPC {
     }
 
     nextAction.reset().fadeIn(fadeDuration).play();
-    this.currentActionName = name;
+    this.currentActionName = targetName;
   }
 
   public stopAnimation(fadeDuration: number = 0.35): void {
@@ -561,9 +595,9 @@ export class StudentNPC {
     this.isWalking = false;
     this.targetPosition = null;
 
-    // Regresar a postura de pie sobre el suelo
+    // Regresar a postura de pie sobre el suelo y activar idle natural
     this.group.position.y = 0;
-    this.stopAnimation(0.35);
+    this.playAnimation('idle', 0.4);
 
     if (this.leftLeg) this.leftLeg.rotation.set(0, 0, 0);
     if (this.rightLeg) this.rightLeg.rotation.set(0, 0, 0);
@@ -647,6 +681,11 @@ export class StudentNPC {
 
     // 4. Respiración sutil / Idle si está de pie esperando
     if (!this.isWalking) {
+      if (this.mixer && (this.actions.has('idle') || this.actions.has('temp_idle'))) {
+        if (this.currentActionName !== 'idle' && this.currentActionName !== 'temp_idle') {
+          this.playAnimation('idle', 0.4);
+        }
+      }
       this.walkTime += delta * 1.8;
       if (this.customModel && !this.mixer) {
         this.customModel.position.y = Math.sin(this.walkTime) * 0.005;
@@ -699,7 +738,8 @@ export class StudentNPC {
       } else {
         // Llegó al objetivo
         this.isWalking = false;
-        this.stopAnimation(0.35);
+        this.targetPosition = null;
+        this.playAnimation('idle', 0.4);
 
         if (this.customModel && !this.mixer) {
           this.customModel.position.y = 0;
