@@ -220,8 +220,9 @@ export class XRManager {
         const rightVec = new THREE.Vector3();
         rightVec.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
 
-        this.xrRig.position.addScaledVector(cameraDirection, -stickZ * speed);
-        this.xrRig.position.addScaledVector(rightVec, stickX * speed);
+        // Invertir los ejes de traslación para que adelante sea avanzar hacia el frente y derecha sea hacia la derecha
+        this.xrRig.position.addScaledVector(cameraDirection, stickZ * speed);
+        this.xrRig.position.addScaledVector(rightVec, -stickX * speed);
 
         // Limitar dentro del área de servicio del operador (detrás del mostrador)
         this.xrRig.position.x = THREE.MathUtils.clamp(this.xrRig.position.x, -2.4, 2.4);
