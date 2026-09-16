@@ -21,6 +21,9 @@ export class StudentNPC {
   private proceduralBody: THREE.Group = new THREE.Group();
   public customModel: THREE.Group | null = null;
 
+  // Caché estático de animaciones FBX para que el segundo y tercer alumno no re-descarguen archivos
+  private static cachedClips: Map<string, THREE.AnimationClip> = new Map();
+
   // Animaciones Mixamo esqueléticas
   public mixer: THREE.AnimationMixer | null = null;
   public actions: Map<string, THREE.AnimationAction> = new Map();
@@ -198,6 +201,64 @@ export class StudentNPC {
     this.group.add(this.proceduralBody);
   }
 
+  // Crea un bucle de respiración natural y reposada (3.0s) a partir de la pose anatómica erguida
+  private createNaturalBreathingIdle(sourceClip: THREE.AnimationClip): THREE.AnimationClip {
+    const duration = 3.0;
+    const tracks: THREE.KeyframeTrack[] = [];
+
+    for (const track of sourceClip.tracks) {
+      if (track instanceof THREE.VectorKeyframeTrack) {
+        const x0 = track.values[0];
+        const y0 = track.values[1];
+        const z0 = track.values[2];
+
+        const isHips = track.name.toLowerCase().includes('hips');
+        if (isHips) {
+          // Respiración suave en Y: sube 3.5mm al inhalar (t=1.5s) y regresa a su base (t=3.0s)
+          const times = [0, 1.5, duration];
+          const values = [
+            x0, y0, z0,
+            x0, y0 + 0.0035, z0,
+            x0, y0, z0
+          ];
+          tracks.push(new THREE.VectorKeyframeTrack(track.name, times, values));
+        } else {
+          tracks.push(new THREE.VectorKeyframeTrack(track.name, [0, duration], [x0, y0, z0, x0, y0, z0]));
+        }
+      } else if (track instanceof THREE.QuaternionKeyframeTrack) {
+        const q0 = new THREE.Quaternion(
+          track.values[0],
+          track.values[1],
+          track.values[2],
+          track.values[3]
+        );
+
+        const isSpine = track.name.toLowerCase().includes('spine');
+        if (isSpine) {
+          // Expansión torácica sutil al inhalar (~0.8 grados hacia atrás)
+          const qBreath = q0.clone().multiply(
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.015)
+          );
+          const times = [0, 1.5, duration];
+          const values = [
+            q0.x, q0.y, q0.z, q0.w,
+            qBreath.x, qBreath.y, qBreath.z, qBreath.w,
+            q0.x, q0.y, q0.z, q0.w
+          ];
+          tracks.push(new THREE.QuaternionKeyframeTrack(track.name, times, values));
+        } else {
+          tracks.push(new THREE.QuaternionKeyframeTrack(
+            track.name,
+            [0, duration],
+            [q0.x, q0.y, q0.z, q0.w, q0.x, q0.y, q0.z, q0.w]
+          ));
+        }
+      }
+    }
+
+    return new THREE.AnimationClip('idle', duration, tracks);
+  }
+
   private loadAnimatedFBXModel(): void {
     const fbxLoader = new FBXLoader();
     const texLoader = new THREE.TextureLoader();
@@ -229,12 +290,6 @@ export class StudentNPC {
         const studentTexture = texLoader.load('textures/student_texture.png');
         studentTexture.colorSpace = THREE.SRGBColorSpace;
 
-        // El usuario solicitó explícitamente que las luces del escenario NO afecten al alumno
-        // ("a él no le debe afectar las luces solo al sitio porfa").
-        // Con MeshBasicMaterial, fog: false y DoubleSide:
-        // 1. El personaje se ve con 100% de color y nitidez desde cualquier distancia sin ser oscurecido por la niebla.
-        // 2. No sufre sombras oscuras en brazos, rostro o manos producidas por las luces del techo.
-        // 3. Rinde a 90 FPS estables en Meta Quest 3S sin costo de sombreado.
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.SkinnedMesh;
@@ -255,18 +310,41 @@ export class StudentNPC {
         const mixer = new THREE.AnimationMixer(model);
         this.mixer = mixer;
 
+        // Listener para encadenar transiciones como Stand To Sit ('sit') -> Writing ('write')
+        mixer.addEventListener('finished', (e: any) => {
+          if (e.action && e.action.getClip().name === 'sit') {
+            if (this.isSeated) {
+              this.playAnimation('write', 0.35);
+            }
+          }
+        });
+
+        // Registrar clips si ya estaban en caché estático
+        if (StudentNPC.cachedClips.size > 0) {
+          StudentNPC.cachedClips.forEach((clip, name) => {
+            const action = mixer.clipAction(clip);
+            if (name === 'sit') {
+              action.setLoop(THREE.LoopOnce, 1);
+              action.clampWhenFinished = true;
+            } else {
+              action.setLoop(THREE.LoopRepeat, Infinity);
+            }
+            this.actions.set(name, action);
+          });
+        }
+
         // Clip 1: Caminata In-Place (Walking)
-        if (model.animations && model.animations.length > 0) {
+        if (model.animations && model.animations.length > 0 && !this.actions.has('walk')) {
           const walkClip = this.makeInPlace(model.animations[0].clone(), 'walk');
+          StudentNPC.cachedClips.set('walk', walkClip);
           const walkAction = mixer.clipAction(walkClip);
           walkAction.setLoop(THREE.LoopRepeat, Infinity);
           this.actions.set('walk', walkAction);
 
-          // Clip de Idle preliminar (frame 0 de Walking) por si Stand To Sit aún no finaliza
-          const tempIdleClip = this.makeInPlace(
-            THREE.AnimationUtils.subclip(model.animations[0], 'temp_idle', 0, 2, 30),
-            'temp_idle'
-          );
+          // Clip de Idle preliminar con respiración reposada
+          const tempIdleClip = this.createNaturalBreathingIdle(model.animations[0]);
+          tempIdleClip.name = 'temp_idle';
+          StudentNPC.cachedClips.set('temp_idle', tempIdleClip);
           const tempIdleAction = mixer.clipAction(tempIdleClip);
           tempIdleAction.setLoop(THREE.LoopRepeat, Infinity);
           this.actions.set('temp_idle', tempIdleAction);
@@ -280,52 +358,72 @@ export class StudentNPC {
         }
 
         // Clip 2: Escribir / Teclear en laptop (Writing)
-        fbxLoader.load('models/animations/Writing.fbx', (animObj) => {
-          if (animObj.animations && animObj.animations.length > 0) {
-            const writeClip = animObj.animations[0].clone();
-            writeClip.name = 'write';
-            const writeAction = mixer.clipAction(writeClip);
-            writeAction.setLoop(THREE.LoopRepeat, Infinity);
-            this.actions.set('write', writeAction);
-          }
-        });
+        if (!this.actions.has('write')) {
+          fbxLoader.load('models/animations/Writing.fbx', (animObj) => {
+            if (animObj.animations && animObj.animations.length > 0) {
+              const writeClip = animObj.animations[0].clone();
+              writeClip.name = 'write';
+              StudentNPC.cachedClips.set('write', writeClip);
+              const writeAction = mixer.clipAction(writeClip);
+              writeAction.setLoop(THREE.LoopRepeat, Infinity);
+              this.actions.set('write', writeAction);
+
+              // Si ya estaba sentado mientras cargaba la animación, comenzar tecleo
+              if (this.isSeated && this.currentActionName !== 'sit') {
+                this.playAnimation('write', 0.35);
+              }
+            }
+          });
+        }
 
         // Clip 3: Sentarse en la silla (Stand To Sit) y extracción de postura Idle natural
-        fbxLoader.load('models/animations/Stand To Sit.fbx', (animObj) => {
-          if (animObj.animations && animObj.animations.length > 0) {
-            // Extraer clip 'idle' (frames 0-15: postura de pie erguida, brazos relajados a los lados y respiración sutil)
-            const rawIdleClip = THREE.AnimationUtils.subclip(animObj.animations[0], 'idle', 0, 15, 30);
-            const idleClip = this.makeInPlace(rawIdleClip, 'idle');
-            const idleAction = mixer.clipAction(idleClip);
-            idleAction.setLoop(THREE.LoopRepeat, Infinity);
-            this.actions.set('idle', idleAction);
+        if (!this.actions.has('idle') || !this.actions.has('sit')) {
+          fbxLoader.load('models/animations/Stand To Sit.fbx', (animObj) => {
+            if (animObj.animations && animObj.animations.length > 0) {
+              // Generar clip 'idle' con respiración fluida y calmada (3.0s continuos)
+              const idleClip = this.createNaturalBreathingIdle(animObj.animations[0]);
+              StudentNPC.cachedClips.set('idle', idleClip);
+              const idleAction = mixer.clipAction(idleClip);
+              idleAction.setLoop(THREE.LoopRepeat, Infinity);
+              this.actions.set('idle', idleAction);
 
-            const sitClip = animObj.animations[0].clone();
-            sitClip.name = 'sit';
-            const sitAction = mixer.clipAction(sitClip);
-            sitAction.setLoop(THREE.LoopOnce, 1);
-            sitAction.clampWhenFinished = true;
-            this.actions.set('sit', sitAction);
+              const sitClip = animObj.animations[0].clone();
+              sitClip.name = 'sit';
+              StudentNPC.cachedClips.set('sit', sitClip);
+              const sitAction = mixer.clipAction(sitClip);
+              sitAction.setLoop(THREE.LoopOnce, 1);
+              sitAction.clampWhenFinished = true;
+              this.actions.set('sit', sitAction);
 
-            // Si el alumno no está caminando ni sentado, reproducir idle de inmediato
-            if (!this.isWalking && !this.isSeated) {
-              this.playAnimation('idle', 0.4);
+              // Si el alumno no está caminando ni sentado, reproducir idle de inmediato
+              if (!this.isWalking && !this.isSeated) {
+                this.playAnimation('idle', 0.4);
+              }
             }
-          }
-        });
+          });
+        }
 
         // Clip 4: Caminata con estilo al retirarse (Swagger Walk)
-        fbxLoader.load('models/animations/Swagger Walk.fbx', (animObj) => {
-          if (animObj.animations && animObj.animations.length > 0) {
-            const swaggerClip = this.makeInPlace(animObj.animations[0].clone(), 'swagger');
-            const swaggerAction = mixer.clipAction(swaggerClip);
-            swaggerAction.setLoop(THREE.LoopRepeat, Infinity);
-            this.actions.set('swagger', swaggerAction);
-          }
-        });
+        if (!this.actions.has('swagger')) {
+          fbxLoader.load('models/animations/Swagger Walk.fbx', (animObj) => {
+            if (animObj.animations && animObj.animations.length > 0) {
+              const swaggerClip = this.makeInPlace(animObj.animations[0].clone(), 'swagger');
+              StudentNPC.cachedClips.set('swagger', swaggerClip);
+              const swaggerAction = mixer.clipAction(swaggerClip);
+              swaggerAction.setLoop(THREE.LoopRepeat, Infinity);
+              this.actions.set('swagger', swaggerAction);
+            }
+          });
+        }
 
         // Si ya había una caminata en curso al cargarse, reproducir walk; de lo contrario idle
-        if (this.isWalking) {
+        if (this.isSeated) {
+          if (this.actions.has('sit')) {
+            this.playAnimation('sit', 0.2);
+          } else if (this.actions.has('write')) {
+            this.playAnimation('write', 0.3);
+          }
+        } else if (this.isWalking) {
           this.playAnimation('walk');
         } else {
           this.playAnimation('idle');
@@ -363,8 +461,15 @@ export class StudentNPC {
     if (!this.mixer) return;
 
     let targetName = name;
+    // Fallbacks si la animación solicitada aún está cargando
     if (targetName === 'idle' && !this.actions.has('idle') && this.actions.has('temp_idle')) {
       targetName = 'temp_idle';
+    } else if (targetName === 'swagger' && !this.actions.has('swagger')) {
+      targetName = 'walk';
+    } else if (targetName === 'write' && !this.actions.has('write')) {
+      targetName = 'idle';
+    } else if (targetName === 'sit' && !this.actions.has('sit')) {
+      targetName = this.actions.has('write') ? 'write' : 'idle';
     }
 
     if (this.currentActionName === targetName) return;
@@ -561,42 +666,44 @@ export class StudentNPC {
     this.isWalking = false;
     this.targetPosition = null;
 
+    // Posicionarse en la silla y orientarse hacia la mesa (+Z)
+    this.group.position.set(chairPos.x, 0, chairPos.z);
+    this.group.rotation.set(0, 0, 0);
+
     if (this.mixer) {
-      // Con modelo animado Mixamo: posicionarse frente a la mesa y comenzar animación de tecleo
-      this.group.position.set(chairPos.x, 0, chairPos.z);
-      this.playAnimation('write');
+      if (this.actions.has('sit')) {
+        // Reproducir transición de sentarse (Stand To Sit); al finalizar encadena a 'write'
+        this.playAnimation('sit', 0.25);
+      } else if (this.actions.has('write')) {
+        this.playAnimation('write', 0.35);
+      } else {
+        this.playAnimation('idle', 0.35);
+      }
     } else if (this.customModel) {
-      // Para modelo 3D estático, se posiciona de pie frente a la mesa de estudio
+      // Para modelo 3D estático, se posiciona frente a la mesa
       this.group.position.set(chairPos.x, 0, chairPos.z);
     } else {
-      // Altura del asiento: Y = 0.46m. Como la cadera local está en Y = 0.82m:
-      // Y del grupo = 0.46 - 0.82 = -0.36m (Posición anatómica perfecta sobre el asiento)
+      // Altura del asiento anatómica para cuerpo procedural
       this.group.position.set(chairPos.x, -0.36, chairPos.z);
 
-      // 1. Caderas a 90° (muslos horizontales sobre la silla)
       this.leftLeg.rotation.x = -Math.PI / 2;
       this.rightLeg.rotation.x = -Math.PI / 2;
-
-      // 2. Rodillas a 90° (pantorrillas verticales hacia el piso)
       this.leftKnee.rotation.x = Math.PI / 2;
       this.rightKnee.rotation.x = Math.PI / 2;
     }
 
-    this.group.rotation.set(0, 0, 0); // Mirando hacia la mesa
-
-    // 3. Colocar la laptop abierta sobre la mesa justo frente a él
+    // Colocar la laptop abierta sobre la mesa justo frente al alumno
     if (this.heldLaptop) {
       const parentScene = this.group.parent;
       if (parentScene) {
         parentScene.add(this.heldLaptop.group);
       }
-      // Colocar sobre la mesa del estudiante (Y = 0.77m, Z = chairPos.z + 0.35m)
       this.heldLaptop.group.position.set(chairPos.x, 0.77, chairPos.z + 0.35);
       this.heldLaptop.group.rotation.set(0, Math.PI, 0); // Orientada hacia el estudiante
       this.heldLaptop.setOpen(true);
     }
 
-    // 4. Brazos descansando sobre la mesa para teclear en la laptop
+    // Brazos descansando sobre la mesa
     if (this.leftArm && this.rightArm) {
       this.leftArm.rotation.x = -Math.PI / 2.7;
       this.rightArm.rotation.x = -Math.PI / 2.7;
@@ -693,9 +800,9 @@ export class StudentNPC {
     }
 
     // 4. Respiración sutil / Idle si está de pie esperando
-    if (!this.isWalking) {
+    if (!this.isWalking && !this.isSeated) {
       if (this.mixer && (this.actions.has('idle') || this.actions.has('temp_idle'))) {
-        if (this.currentActionName !== 'idle' && this.currentActionName !== 'temp_idle') {
+        if (this.currentActionName !== 'idle' && this.currentActionName !== 'temp_idle' && this.currentActionName !== 'sit') {
           this.playAnimation('idle', 0.4);
         }
       }
@@ -749,10 +856,15 @@ export class StudentNPC {
         // Cadencia vertical del torso procedural
         this.torso.position.y = 0.82 + Math.abs(Math.sin(this.walkTime)) * 0.03;
       } else {
-        // Llegó al objetivo
+        // Llegó al objetivo con precisión
+        currentPos.x = this.targetPosition.x;
+        currentPos.z = this.targetPosition.z;
         this.isWalking = false;
         this.targetPosition = null;
-        this.playAnimation('idle', 0.4);
+
+        if (!this.isSeated) {
+          this.playAnimation('idle', 0.4);
+        }
 
         if (this.customModel && !this.mixer) {
           this.customModel.position.y = 0;

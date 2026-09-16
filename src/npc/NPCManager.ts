@@ -395,7 +395,8 @@ export class NPCManager {
     // 1. Detección de llegada al mostrador al inicio
     if (this.currentState === 'ENTERING' && !this.student.isWalking) {
       const dist = this.student.group.position.distanceTo(this.counterPos);
-      if (dist < 0.25) {
+      if (dist < 0.60) {
+        this.student.group.position.copy(this.counterPos);
         this.student.group.rotation.y = Math.PI; // Mirando hacia el operador
         if (this.credentialRef) {
           this.credentialRef.group.visible = true;
@@ -419,7 +420,7 @@ export class NPCManager {
     // 2. Detección de llegada a la silla de trabajo
     if (this.currentState === 'WALKING_TO_DESK' && !this.student.isWalking) {
       const dist = this.student.group.position.distanceTo(this.workChairPos);
-      if (dist < 0.2) {
+      if (dist < 0.60) {
         this.currentState = 'WORKING';
         this.student.sitAtDesk(this.workChairPos);
         this.student.say('Listo, comenzando a trabajar en la laptop.', 4.0);
@@ -436,8 +437,9 @@ export class NPCManager {
     // 3. Detección de llegada al mostrador para DEVOLUCIÓN
     if (this.currentState === 'RETURNING_TO_COUNTER' && !this.student.isWalking) {
       const dist = this.student.group.position.distanceTo(this.counterPos);
-      if (dist < 0.2) {
+      if (dist < 0.60) {
         this.currentState = 'AT_COUNTER_RETURNING';
+        this.student.group.position.copy(this.counterPos);
         this.student.group.rotation.y = Math.PI; // Mirando hacia el operador
         const returnedLaptop = this.student.returnLaptopToCounter();
         if (returnedLaptop) {
@@ -530,7 +532,7 @@ export class NPCManager {
     // 4. Detección de salida del aula por la puerta general
     if (this.currentState === 'EXITING' && !this.student.isWalking) {
       const dist = this.student.group.position.distanceTo(this.entrancePos);
-      if (dist < 0.25) {
+      if (dist < 0.60) {
         this.currentState = 'COMPLETED';
         this.student.group.visible = false;
         events.emit('STUDENT_EXITED_ROOM', { studentName: this.student.config.name });

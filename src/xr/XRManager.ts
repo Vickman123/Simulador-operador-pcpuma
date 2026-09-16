@@ -17,6 +17,10 @@ export class XRManager {
   private renderer: THREE.WebGLRenderer;
   private xrRig: THREE.Group;
 
+  // Control de giro Snap anti-mareo para WebXR (Meta Quest)
+  private hasSnapTurned: boolean = false;
+  private snapTurnCooldown: number = 0;
+
   constructor(renderer: THREE.WebGLRenderer, xrRig: THREE.Group) {
     this.renderer = renderer;
     this.xrRig = xrRig;
@@ -189,15 +193,24 @@ export class XRManager {
   public updateLocomotion(delta: number): void {
     if (!this.isXRPresenting) return;
 
+    if (this.snapTurnCooldown > 0) {
+      this.snapTurnCooldown -= delta;
+    }
+
     const { left, right } = this.getControllerGamepads();
 
-    // Desplazamiento suave con el thumbstick del mando izquierdo
-    if (left && left.axes && left.axes.length >= 4) {
-      const stickX = left.axes[2];
-      const stickZ = left.axes[3];
-      const deadzone = 0.15;
+    // Desplazamiento con thumbstick del mando izquierdo (con filtro anti-drift)
+    if (left && left.axes && left.axes.length >= 2) {
+      const rawX = left.axes.length >= 4 && Math.abs(left.axes[2]) > 0.15 ? left.axes[2] : left.axes[0];
+      const rawZ = left.axes.length >= 4 && Math.abs(left.axes[3]) > 0.15 ? left.axes[3] : left.axes[1];
+      const deadzone = 0.20;
 
-      if (Math.abs(stickX) > deadzone || Math.abs(stickZ) > deadzone) {
+      let stickX = 0;
+      let stickZ = 0;
+      if (Math.abs(rawX) > deadzone) stickX = rawX;
+      if (Math.abs(rawZ) > deadzone) stickZ = rawZ;
+
+      if (stickX !== 0 || stickZ !== 0) {
         const speed = 2.0 * delta;
         const cameraDirection = new THREE.Vector3();
         this.renderer.xr.getCamera().getWorldDirection(cameraDirection);
@@ -216,12 +229,30 @@ export class XRManager {
       }
     }
 
-    // Giro suave o snap con thumbstick del mando derecho
-    if (right && right.axes && right.axes.length >= 4) {
-      const turnX = right.axes[2];
-      const turnDeadzone = 0.35;
-      if (Math.abs(turnX) > turnDeadzone) {
-        this.xrRig.rotation.y -= turnX * 1.5 * delta;
+    // Giro Snap de Confort (30° por pulsación) con thumbstick del mando derecho
+    // Elimina 100% el giro continuo accidental y el mareo por movimiento en Meta Quest
+    if (right && right.axes && right.axes.length >= 2) {
+      const rawTurnX = right.axes.length >= 4 && Math.abs(right.axes[2]) > 0.15 ? right.axes[2] : right.axes[0];
+      const snapThreshold = 0.55;
+      const releaseThreshold = 0.20;
+
+      if (rawTurnX < -snapThreshold) {
+        if (!this.hasSnapTurned && this.snapTurnCooldown <= 0) {
+          // Snap Turn Izquierda (+30°)
+          this.xrRig.rotation.y += Math.PI / 6;
+          this.hasSnapTurned = true;
+          this.snapTurnCooldown = 0.25;
+        }
+      } else if (rawTurnX > snapThreshold) {
+        if (!this.hasSnapTurned && this.snapTurnCooldown <= 0) {
+          // Snap Turn Derecha (-30°)
+          this.xrRig.rotation.y -= Math.PI / 6;
+          this.hasSnapTurned = true;
+          this.snapTurnCooldown = 0.25;
+        }
+      } else if (Math.abs(rawTurnX) < releaseThreshold) {
+        // La palanca regresó a zona neutral: desbloquear para el siguiente snap
+        this.hasSnapTurned = false;
       }
     }
   }
