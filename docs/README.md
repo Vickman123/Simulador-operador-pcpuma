@@ -1,5 +1,7 @@
 # Guía de Assets y Personalización Visual - Simulador PC PUMA
 
+https://vickman123.github.io/Simulador-operador-pcpuma/
+
 Bienvenido a la carpeta de assets del simulador. Aquí puedes colocar tus propias imágenes, texturas y sonidos para reemplazar los elementos visuales generados por código.
 
 ---
